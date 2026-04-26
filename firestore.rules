@@ -1,0 +1,48 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Admins : accès total (emails vérifiés par Firebase Auth) ──────
+    function isAdmin() {
+      return request.auth != null
+          && (request.auth.token.email == 'issamboussalah131@gmail.com'
+           || request.auth.token.email == 'shanedarren42@gmail.com');
+    }
+
+    // ── Utilisateur connecté ───────────────────────────────────────
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // ── Abonnés ───────────────────────────────────────────────────
+    // Lecture : tout utilisateur connecté (pour vérifier son propre statut)
+    // Écriture : admin uniquement (tu ajoutes les abonnés manuellement)
+    match /subscribers/{email} {
+      allow read:  if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ── Profils utilisateurs (doc par UID) ────────────────────────
+    // Chaque utilisateur peut lire/écrire son propre profil.
+    // L'admin peut tout lire et écrire.
+    match /users/{uid} {
+      allow read, write: if isAdmin()
+                         || (isSignedIn() && request.auth.uid == uid);
+    }
+
+    // ── Événements de connexion / inscription ─────────────────────
+    // Écriture : tout utilisateur connecté (pour logger son event)
+    // Lecture : admin uniquement
+    match /loginEvents/{doc} {
+      allow create: if isSignedIn();
+      allow read:   if isAdmin();
+    }
+
+    // ── Pages vues ────────────────────────────────────────────────
+    // Écriture ouverte pour le tracking anonyme, lecture admin
+    match /pageViews/{doc} {
+      allow write: if true;
+      allow read:  if isAdmin();
+    }
+  }
+}

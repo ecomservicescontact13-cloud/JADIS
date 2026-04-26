@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <!-- Double anneau doré -->
+  <circle cx="100" cy="100" r="96" fill="none" stroke="#C9A84C" stroke-width="2"/>
+  <circle cx="100" cy="100" r="88" fill="none" stroke="#C9A84C" stroke-width="1"/>
+
+  <!-- Croissant vert (formé par soustraction de deux arcs) -->
+  <path d="M85 16
+    A 62 62 0 1 0 85 184
+    A 46 46 0 1 1 85 16
+    Z"
+    fill="#5C8878"/>
+
+  <!-- Livre ouvert (centre-haut) -->
+  <!-- Page gauche -->
+  <path d="M86 66 C 81 68 79 73 79 78 L79 95 Q90 91 100 91 L100 64 Q93 61 86 66Z"
+        fill="#C9A84C"/>
+  <!-- Page droite -->
+  <path d="M114 66 C 119 68 121 73 121 78 L121 95 Q110 91 100 91 L100 64 Q107 61 114 66Z"
+        fill="#C9A84C"/>
+  <!-- Reliure centrale -->
+  <line x1="100" y1="64" x2="100" y2="91" stroke="rgba(12,38,32,0.35)" stroke-width="1"/>
+
+  <!-- Rayons de lumière au-dessus du livre -->
+  <line x1="100" y1="62" x2="100" y2="47" stroke="#C9A84C" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="109" y1="64" x2="117" y2="51" stroke="#C9A84C" stroke-width="2.2" stroke-linecap="round"/>
+  <line x1="91" y1="64" x2="83" y2="51" stroke="#C9A84C" stroke-width="2.2" stroke-linecap="round"/>
+  <line x1="116" y1="68" x2="127" y2="57" stroke="#C9A84C" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="84" y1="68" x2="73" y2="57" stroke="#C9A84C" stroke-width="1.8" stroke-linecap="round"/>
+
+  <!-- Étoile 4 branches (haut droite) -->
+  <polygon points="134,40 136,47 143,49 136,51 134,58 132,51 125,49 132,47" fill="#EDD590"/>
+  <!-- Petites étoiles satellites -->
+  <circle cx="150" cy="32" r="2.8" fill="#EDD590"/>
+  <circle cx="145" cy="21" r="1.8" fill="#EDD590"/>
+  <!-- Étoile petite (gauche haut croissant) -->
+  <polygon points="68,52 69,55 72,56 69,57 68,60 67,57 64,56 67,55" fill="#EDD590" opacity="0.8"/>
+
+  <!-- Trois vagues calligraphiques dorées (bas du cercle) -->
+  <path d="M42 122 C 58 108, 76 120, 96 111 C 113 103, 130 116, 154 107"
+        fill="none" stroke="#C9A84C" stroke-width="7.5" stroke-linecap="round"/>
+  <path d="M44 136 C 60 123, 78 134, 98 126 C 115 118, 132 130, 155 121"
+        fill="none" stroke="#C9A84C" stroke-width="5.5" stroke-linecap="round"/>
+  <path d="M46 149 C 62 137, 80 147, 100 140 C 117 133, 133 143, 156 134"
+        fill="none" stroke="#C9A84C" stroke-width="4" stroke-linecap="round"/>
+
+  <!-- Petite lueur sur le croissant (sparkle bas gauche) -->
+  <circle cx="55" cy="130" r="2" fill="#EDD590" opacity="0.6"/>
+</svg>

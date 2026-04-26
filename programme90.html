@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Programme 90 Jours — JADIS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500;600&family=Amiri:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --white: #FFFFFF;
+      --cream: #FAF8F3;
+      --cream-2: #F2EDE4;
+      --olive-light: #2A5C50;
+      --olive-mid: #1a3d34;
+      --olive-dark: #0C2620;
+      --gold: #C4A35A;
+      --gold-light: #E8C96A;
+      --gold-pale: #F5EDD6;
+      --text: #1A1A1A;
+      --text-muted: #6B6B6B;
+      --border: #E5E0D8;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'DM Sans', sans-serif; color: var(--text); background: var(--cream); line-height: 1.7; overflow-x: hidden; }
+    a { text-decoration: none; color: inherit; }
+
+    /* NAV */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: rgba(12,38,32,0.97); backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(196,163,90,0.2);
+      padding: 0 24px;
+    }
+    .nav-inner {
+      max-width: 1080px; margin: 0 auto;
+      height: 58px; display: flex; align-items: center; justify-content: space-between;
+    }
+    .nav-logo { display: flex; align-items: center; gap: 10px; }
+    .nav-logo-name { font-family: 'Cormorant Garamond', serif; font-size: 1.3rem; font-weight: 500; letter-spacing: 0.2em; color: var(--white); }
+    .nav-logo-sub { font-size: 0.6rem; color: var(--gold); letter-spacing: 0.1em; }
+    .nav-back { font-size: 0.82rem; color: rgba(255,255,255,0.5); display: flex; align-items: center; gap: 6px; transition: color 0.2s; cursor: pointer; background: none; border: none; font-family: inherit; }
+    .nav-back:hover { color: rgba(255,255,255,0.9); }
+
+    /* HERO */
+    .hero {
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(160deg, var(--olive-dark) 0%, #1a3d34 60%, #2A5C50 100%);
+      padding: 80px 24px 60px; text-align: center; position: relative; overflow: hidden;
+    }
+    .hero-bg {
+      position: absolute; inset: 0; opacity: 0.04;
+      background-image: repeating-linear-gradient(45deg, var(--gold) 0, var(--gold) 1px, transparent 0, transparent 50%);
+      background-size: 30px 30px;
+    }
+    .hero-content { position: relative; z-index: 1; max-width: 640px; }
+    .hero-eyebrow { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--gold); margin-bottom: 20px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+    .hero-eyebrow::before, .hero-eyebrow::after { content: ''; width: 28px; height: 1px; background: var(--gold); opacity: 0.5; }
+    .hero-title { font-family: 'Cormorant Garamond', serif; font-size: clamp(2.2rem, 5vw, 3.6rem); color: var(--white); font-weight: 500; line-height: 1.15; margin-bottom: 20px; }
+    .hero-title em { font-style: italic; color: var(--gold); }
+    .hero-sub { font-size: 1rem; color: rgba(255,255,255,0.6); line-height: 1.8; max-width: 520px; margin: 0 auto 36px; }
+    .hero-arabic { font-family: 'Amiri', serif; font-size: 1.5rem; color: rgba(196,163,90,0.8); direction: rtl; margin-bottom: 8px; }
+    .hero-ayah { font-size: 0.78rem; color: rgba(255,255,255,0.35); font-style: italic; margin-bottom: 36px; }
+    .btn-start { display: inline-flex; align-items: center; gap: 10px; padding: 16px 36px; background: var(--gold); color: var(--white); font-family: 'DM Sans', sans-serif; font-size: 0.95rem; font-weight: 600; letter-spacing: 0.04em; border-radius: 100px; cursor: pointer; border: none; transition: all 0.3s; }
+    .btn-start:hover { background: #b8922e; transform: translateY(-2px); box-shadow: 0 12px 32px rgba(196,163,90,0.35); }
+
+    /* MAIN CONTENT */
+    .page { max-width: 800px; margin: 0 auto; padding: 0 24px 80px; }
+
+    /* STEP INDICATORS */
+    .steps-bar {
+      background: var(--white); border-bottom: 1px solid var(--border);
+      position: sticky; top: 58px; z-index: 50; padding: 0 24px;
+    }
+    .steps-inner {
+      max-width: 800px; margin: 0 auto;
+      display: flex; align-items: center; height: 52px;
+      gap: 4px; overflow-x: auto;
+    }
+    .step-item {
+      display: flex; align-items: center; gap: 8px; padding: 6px 14px;
+      border-radius: 100px; font-size: 0.8rem; font-weight: 500;
+      color: var(--text-muted); white-space: nowrap; cursor: pointer; transition: all 0.2s;
+      border: none; background: none; font-family: inherit;
+    }
+    .step-item.active { background: var(--olive-dark); color: var(--white); }
+    .step-item.done { background: var(--gold-pale); color: #8B6914; }
+    .step-num { width: 22px; height: 22px; border-radius: 50%; background: rgba(0,0,0,0.08); display: flex; align-items: center; justify-content: center; font-size: 0.72rem; font-weight: 700; flex-shrink: 0; }
+    .step-item.active .step-num { background: rgba(255,255,255,0.2); color: var(--white); }
+    .step-item.done .step-num { background: var(--gold); color: var(--white); }
+
+    /* FORM SECTIONS */
+    .form-section { display: none; padding-top: 48px; }
+    .form-section.active { display: block; animation: fadeUp 0.4s ease both; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+
+    .section-header { margin-bottom: 36px; }
+    .section-eyebrow { font-size: 0.7rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--gold); margin-bottom: 10px; }
+    .section-title { font-family: 'Cormorant Garamond', serif; font-size: clamp(1.8rem, 3.5vw, 2.4rem); color: var(--olive-dark); line-height: 1.2; margin-bottom: 12px; }
+    .section-desc { font-size: 0.95rem; color: var(--text-muted); line-height: 1.8; max-width: 600px; }
+
+    /* FORM FIELDS */
+    .form-group { margin-bottom: 28px; }
+    .form-label { display: block; font-size: 0.88rem; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+    .form-label span { font-size: 0.78rem; font-weight: 400; color: var(--text-muted); margin-left: 6px; }
+    .form-input, .form-textarea, .form-select {
+      width: 100%; padding: 14px 16px; border: 1px solid var(--border);
+      background: var(--white); font-family: 'DM Sans', sans-serif; font-size: 0.92rem;
+      color: var(--text); outline: none; border-radius: 8px; transition: border-color 0.2s;
+    }
+    .form-input:focus, .form-textarea:focus, .form-select:focus { border-color: var(--olive-mid); }
+    .form-textarea { resize: vertical; min-height: 100px; line-height: 1.65; }
+    .form-select { cursor: pointer; appearance: none; background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236B6B6B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 14px center; background-size: 18px; padding-right: 40px; }
+
+    /* SCALE SLIDER */
+    .scale-group { display: flex; flex-direction: column; gap: 12px; }
+    .scale-item { display: flex; align-items: center; gap: 14px; }
+    .scale-label { font-size: 0.87rem; font-weight: 500; color: var(--text); width: 160px; flex-shrink: 0; }
+    .scale-slider { flex: 1; -webkit-appearance: none; appearance: none; height: 4px; background: var(--border); border-radius: 2px; outline: none; cursor: pointer; }
+    .scale-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; background: var(--olive-mid); cursor: pointer; transition: background 0.2s; }
+    .scale-slider::-webkit-slider-thumb:hover { background: var(--gold); }
+    .scale-val { width: 28px; text-align: right; font-weight: 700; color: var(--olive-mid); font-size: 0.9rem; }
+
+    /* CHECKBOXES */
+    .checks-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .check-option {
+      display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px;
+      background: var(--white); border: 1px solid var(--border); border-radius: 8px;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .check-option:hover { border-color: var(--olive-mid); }
+    .check-option.selected { background: rgba(42,92,80,0.06); border-color: var(--olive-mid); }
+    .check-option-box { width: 18px; height: 18px; border: 1.5px solid var(--border); border-radius: 4px; flex-shrink: 0; margin-top: 1px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; color: var(--white); }
+    .check-option.selected .check-option-box { background: var(--olive-mid); border-color: var(--olive-mid); }
+    .check-option.selected .check-option-box::after { content: '✓'; }
+    .check-option-text { font-size: 0.87rem; color: var(--text); line-height: 1.5; }
+
+    /* NAV BUTTONS */
+    .form-nav { display: flex; gap: 12px; align-items: center; margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--border); }
+    .btn-next { padding: 13px 28px; background: var(--olive-dark); color: var(--white); border: none; border-radius: 100px; font-family: 'DM Sans', sans-serif; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 8px; }
+    .btn-next:hover { background: var(--olive-mid); }
+    .btn-prev { padding: 12px 24px; background: transparent; color: var(--text-muted); border: 1.5px solid var(--border); border-radius: 100px; font-family: 'DM Sans', sans-serif; font-size: 0.9rem; font-weight: 500; cursor: pointer; transition: all 0.2s; }
+    .btn-prev:hover { border-color: var(--olive-mid); color: var(--olive-dark); }
+    .btn-generate { padding: 15px 36px; background: var(--gold); color: var(--white); border: none; border-radius: 100px; font-family: 'DM Sans', sans-serif; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; gap: 10px; }
+    .btn-generate:hover { background: #b8922e; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(196,163,90,0.3); }
+
+    /* PROGRAMME RESULT */
+    #result-section { display: none; padding-top: 48px; animation: fadeUp 0.5s ease both; }
+    .result-hero {
+      background: linear-gradient(160deg, var(--olive-dark), #1a3d34);
+      border-radius: 20px; padding: 40px; margin-bottom: 32px; text-align: center;
+    }
+    .result-hero-eyebrow { font-size: 0.68rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); margin-bottom: 14px; }
+    .result-hero h2 { font-family: 'Cormorant Garamond', serif; font-size: clamp(1.8rem, 4vw, 2.8rem); color: var(--white); font-weight: 500; margin-bottom: 14px; line-height: 1.2; }
+    .result-hero p { font-size: 0.92rem; color: rgba(255,255,255,0.6); max-width: 520px; margin: 0 auto; line-height: 1.8; }
+
+    .module-card {
+      background: var(--white); border: 1px solid var(--border); border-radius: 16px;
+      padding: 32px; margin-bottom: 20px; position: relative; overflow: hidden;
+    }
+    .module-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--olive-mid); }
+    .module-num { font-family: 'Cormorant Garamond', serif; font-size: 3rem; font-weight: 300; color: var(--gold); opacity: 0.25; line-height: 1; margin-bottom: -6px; }
+    .module-label { font-size: 0.7rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); margin-bottom: 8px; }
+    .module-title { font-family: 'Cormorant Garamond', serif; font-size: 1.5rem; color: var(--olive-dark); margin-bottom: 12px; }
+    .module-content { font-size: 0.9rem; color: var(--text-muted); line-height: 1.8; }
+    .module-content strong { color: var(--text); }
+    .module-actions { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
+    .module-action-item {
+      display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px;
+      background: var(--cream); border-radius: 8px; font-size: 0.87rem; color: var(--text);
+    }
+    .module-action-icon { width: 20px; height: 20px; border-radius: 50%; background: var(--olive-mid); color: white; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+
+    .habit-box {
+      background: linear-gradient(135deg, var(--gold-pale), #fff8ed);
+      border: 1px solid rgba(196,163,90,0.3); border-radius: 12px;
+      padding: 20px 22px; margin-top: 20px;
+    }
+    .habit-label { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold); margin-bottom: 10px; }
+    .habit-stack { font-size: 0.9rem; color: var(--text); line-height: 1.7; }
+    .habit-stack strong { color: var(--olive-mid); }
+
+    .cta-result {
+      background: var(--olive-dark); border-radius: 16px; padding: 36px; text-align: center; margin-top: 32px;
+    }
+    .cta-result h3 { font-family: 'Cormorant Garamond', serif; font-size: 1.8rem; color: var(--white); margin-bottom: 12px; }
+    .cta-result p { font-size: 0.88rem; color: rgba(255,255,255,0.55); margin-bottom: 24px; }
+    .btn-cta-final { display: inline-block; padding: 14px 32px; background: var(--gold); color: var(--white); font-family: 'DM Sans', sans-serif; font-size: 0.95rem; font-weight: 600; border-radius: 100px; transition: all 0.2s; }
+    .btn-cta-final:hover { background: #b8922e; }
+
+    /* LOADING */
+    .loading-screen { display: none; text-align: center; padding: 80px 24px; }
+    .loading-screen.active { display: block; animation: fadeUp 0.3s ease both; }
+    .loading-spinner { width: 48px; height: 48px; border: 3px solid var(--border); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 24px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text { font-family: 'Cormorant Garamond', serif; font-size: 1.4rem; color: var(--olive-dark); margin-bottom: 8px; }
+    .loading-sub { font-size: 0.85rem; color: var(--text-muted); }
+
+    /* RESPONSIVE */
+    @media (max-width: 640px) {
+      .checks-grid { grid-template-columns: 1fr; }
+      .scale-label { width: 120px; font-size: 0.82rem; }
+      .steps-inner { gap: 2px; }
+      .step-item { padding: 5px 10px; font-size: 0.75rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-inner">
+    <a href="landing.html" class="nav-logo">
+      <svg width="28" height="28" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="47" fill="none" stroke="#C4A35A" stroke-width="2"/>
+        <circle cx="50" cy="50" r="43" fill="none" stroke="#C4A35A" stroke-width="0.9"/>
+        <path d="M40 17 A 33 33 0 1 0 40 83 A 24 24 0 1 1 40 17 Z" fill="#5C8878"/>
+        <path d="M22 58 C 30 48 40 55 50 48 C 58 42 66 50 74 44" fill="none" stroke="#C4A35A" stroke-width="5" stroke-linecap="round"/>
+        <path d="M24 66 C 32 57 42 63 51 57 C 59 51 67 58 74 53" fill="none" stroke="#C4A35A" stroke-width="4" stroke-linecap="round"/>
+        <path d="M42 30 L42 46 Q 50 43 58 46 L58 30 Q 50 27 42 30 Z" fill="#C4A35A"/>
+        <line x1="50" y1="25" x2="50" y2="21" stroke="#C4A35A" stroke-width="1.8" stroke-linecap="round"/>
+        <polygon points="65,22 66,25 69,26 66,27 65,30 64,27 61,26 64,25" fill="#E8D5A0"/>
+      </svg>
+      <div>
+        <div class="nav-logo-name">JADIS</div>
+        <div class="nav-logo-sub">Programme 90 Jours</div>
+      </div>
+    </a>
+    <button class="nav-back" onclick="history.back()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+      Retour
+    </button>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero" id="hero-section">
+  <div class="hero-bg"></div>
+  <div class="hero-content">
+    <div class="hero-eyebrow">Glow Up Islamique · Système de personnalisation</div>
+    <div class="hero-arabic">وَمَن يَتَّقِ اللَّهَ يَجْعَل لَّهُ مَخْرَجًا</div>
+    <div class="hero-ayah">« Quiconque craint Allah, Il lui ménage une issue. » — Sourate At-Talâq 65:2</div>
+    <h1 class="hero-title">Ton programme 90 jours<br><em>personnalisé selon ta vie réelle</em></h1>
+    <p class="hero-sub">L'algorithme JADIS croise ta situation, ton identité et tes objectifs avec les sciences cognitives (Moukheiber, James Clear, Carol Dweck) et la spiritualité islamique pour générer un programme qui te ressemble vraiment.</p>
+    <button class="btn-start" onclick="startQuestionnaire()">Commencer mon diagnostic ✦</button>
+  </div>
+</section>
+
+<!-- STEPS BAR (hidden initially) -->
+<div class="steps-bar" id="steps-bar" style="display:none;">
+  <div class="steps-inner">
+    <button class="step-item active" id="step-btn-1" onclick="goToStep(1)"><span class="step-num">1</span>Le Village</button>
+    <button class="step-item" id="step-btn-2" onclick="goToStep(2)"><span class="step-num">2</span>L'Identité</button>
+    <button class="step-item" id="step-btn-3" onclick="goToStep(3)"><span class="step-num">3</span>Le Corps</button>
+    <button class="step-item" id="step-btn-4" onclick="goToStep(4)"><span class="step-num">4</span>Les Objectifs</button>
+  </div>
+</div>
+
+<!-- QUESTIONNAIRE -->
+<div class="page" id="questionnaire" style="display:none;">
+
+  <!-- ÉTAPE 1 : LE CONTEXTE (Le Village) -->
+  <div class="form-section active" id="step-1">
+    <div class="section-header">
+      <div class="section-eyebrow">Étape 1 · Le Contexte</div>
+      <h2 class="section-title">Ton Village</h2>
+      <p class="section-desc">Ta cognition ne se joue pas seul dans ta tête — elle est façonnée par ton environnement. Décris ta réalité concrète.</p>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Ton prénom <span>(pour personnaliser le programme)</span></label>
+      <input type="text" class="form-input" id="q-prenom" placeholder="ex: Youssef" />
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Ton environnement social actuel <span>(être honnête)</span></label>
+      <div class="checks-grid" id="social-checks">
+        <div class="check-option" onclick="toggleCheck(this, 'social')">
+          <div class="check-option-box"></div>
+          <div class="check-option-text">Entourage qui me tire vers le bas (négatif, oisif, haram)</div>
+        </div>
+        <div class="check-option" onclick="toggleCheck(this, 'social')">
+          <div class="check-option-box"></div>
+          <div class="check-option-text">Entourage neutre — ni soutien ni obstacle</div>
+        </div>
+        <div class="check-option" onclick="toggleCheck(this, 'social')">
+          <div class="check-option-box"></div>
+          <div class="check-option-text">Quelques frères / sœurs qui me motivent</div>
+        </div>
+        <div class="check-option" onclick="toggleCheck(this, 'social')">
+          <div class="check-option-box"></div>
+          <div class="check-option-text">Environnement professionnel toxique / source de stress</div>
+        </div>
+        <div class="check-option" onclick="toggleCheck(this, 'social')">
+          <div class="check-option-box"></div>
+          <div class="check-option-text">Solitude — je manque de liens significatifs</div>
+        </div>
+        <div class="check-option" onclick="toggleCheck(this, 'social')">
+          <div class="check-option-box"></div>
+          <div class="check-option-text">Famille compréhensive et soutenante</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Quelle est ton occupation principale actuellement ?</label>
+      <select class="form-select" id="q-occupation">
+        <option value="">Sélectionne...</option>
+        <option value="etudiant">Étudiant(e)</option>
+        <option value="travailleur">Salarié(e) / Employé(e)</option>
+        <option value="entrepreneur">Entrepreneur / Indépendant</option>
+        <option value="chomage">En recherche d'emploi</option>
+        <option value="reconversion">En reconversion professionnelle</option>
+        <option value="autre">Autre</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Quels sont tes principaux freins extérieurs ? <span>(décris librement)</span></label>
+      <textarea class="form-textarea" id="q-freins" placeholder="ex: manque de temps, famille peu compréhensive, environnement de travail stressant, finances difficiles..."></textarea>
+    </div>
+
+    <div class="form-nav">
+      <button class="btn-next" onclick="nextStep(1)">Continuer <span>→</span></button>
+    </div>
+  </div>
+
+  <!-- ÉTAPE 2 : L'IDENTITÉ -->
+  <div class="form-section" id="step-2">
+    <div class="section-header">
+      <div class="section-eyebrow">Étape 2 · L'Identité Actuelle</div>
+      <h2 class="section-title">Ce que tu te racontes sur toi</h2>
+      <p class="section-desc">Nos croyances limitantes ne sont pas des vérités — ce sont des histoires répétées. Identifions-les.</p>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Quelle est ta relation avec l'Islam en ce moment ?</label>
+      <select class="form-select" id="q-islam">
+        <option value="">Sélectionne...</option>
+        <option value="deconnecte">Je me sens déconnecté — je prie peu ou pas</option>
+        <option value="culpabilite">Je me sens coupable — j'essaie mais je rechute</option>
+        <option value="routinier">Pratique routinière — sans vraie présence</option>
+        <option value="croissant">En croissance — je cherche à approfondir</option>
+        <option value="solide">Pratique solide — je veux aller plus loin</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Lesquelles de ces phrases te ressemblent ? <span>(coche tout ce qui s'applique)</span></label>
+      <div class="checks-grid" id="identite-checks">
+        <div class="check-option" onclick="toggleCheck(this, 'identite')">
+          <div class="check-option-box"></div>
+          <div class="check-option-text">"Je ne suis pas quelqu'un de discipliné"</div>
+        </div>
+        <div class="check-option" onclick="toggleCheck(this, 'identite')">
+          <div class="check-option-box"></div>
+          <div class="check-option-text">"Je recommence mais j'abandonne toujours"</div>
+        </div>
+        <div class="check-option" onclick="toggleCheck(this, 'identite')">
+          <div class="check-option-box"></div>
+          <div class="check-option-text">"Je ne mérite pas d'être pardonné(e)"</div>
+        </div>
+        <div class="check-option" onclick="toggleCheck(this, 'identite')">
+          <div class="check-option-box"></div>
+          <div class="check-option-text">"Je n'ai pas le temps de me transformer"</div>
+        </div>
+        <div class="check-option" onclick="toggleCheck(this, 'identite')">
+          <div class="check-option-box"></div>
+          <div class="check-option-text">"Je ne suis pas fait(e) pour le sport / la santé"</div>
+        </div>
+        <div class="check-option" onclick="toggleCheck(this, 'identite')">
+          <div class="check-option-box"></div>
+          <div class="check-option-text">"Mon environnement m'empêche de progresser"</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Décris en quelques mots qui tu voudrais être dans 90 jours</label>
+      <textarea class="form-textarea" id="q-vision" placeholder="ex: quelqu'un qui prie Fajr chaque matin, qui fait du sport 3 fois par semaine, qui a un projet de vie clair..."></textarea>
+    </div>
+
+    <div class="form-nav">
+      <button class="btn-prev" onclick="prevStep(2)">← Retour</button>
+      <button class="btn-next" onclick="nextStep(2)">Continuer <span>→</span></button>
+    </div>
+  </div>
+
+  <!-- ÉTAPE 3 : SIGNAUX BIOLOGIQUES -->
+  <div class="form-section" id="step-3">
+    <div class="section-header">
+      <div class="section-eyebrow">Étape 3 · Les Signaux Biologiques</div>
+      <h2 class="section-title">L'état de ton corps</h2>
+      <p class="section-desc">Le cerveau est dans le corps. L'énergie physique conditionne l'effort spirituel et mental. Évalue honnêtement.</p>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Évalue ton état actuel <span>(de 1 = très mauvais à 10 = excellent)</span></label>
+      <div class="scale-group">
+        <div class="scale-item">
+          <span class="scale-label">Qualité du sommeil</span>
+          <input type="range" class="scale-slider" id="sl-sommeil" min="1" max="10" value="5" oninput="updateScale('sommeil', this.value)" />
+          <span class="scale-val" id="val-sommeil">5</span>
+        </div>
+        <div class="scale-item">
+          <span class="scale-label">Niveau d'énergie</span>
+          <input type="range" class="scale-slider" id="sl-energie" min="1" max="10" value="5" oninput="updateScale('energie', this.value)" />
+          <span class="scale-val" id="val-energie">5</span>
+        </div>
+        <div class="scale-item">
+          <span class="scale-label">Alimentation</span>
+          <input type="range" class="scale-slider" id="sl-alimentation" min="1" max="10" value="5" oninput="updateScale('alimentation', this.value)" />
+          <span class="scale-val" id="val-alimentation">5</span>
+        </div>
+        <div class="scale-item">
+          <span class="scale-label">Activité physique</span>
+          <input type="range" class="scale-slider" id="sl-sport" min="1" max="10" value="5" oninput="updateScale('sport', this.value)" />
+          <span class="scale-val" id="val-sport">5</span>
+        </div>
+        <div class="scale-item">
+          <span class="scale-label">Stress / Anxiété</span>
+          <input type="range" class="scale-slider" id="sl-stress" min="1" max="10" value="5" oninput="updateScale('stress', this.value)" />
+          <span class="scale-val" id="val-stress">5</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">As-tu des douleurs ou symptômes physiques récurrents ?</label>
+      <textarea class="form-textarea" id="q-douleurs" placeholder="ex: maux de dos, fatigue chronique, migraines... ou 'aucun'" style="min-height:70px;"></textarea>
+    </div>
+
+    <div class="form-nav">
+      <button class="btn-prev" onclick="prevStep(3)">← Retour</button>
+      <button class="btn-next" onclick="nextStep(3)">Continuer <span>→</span></button>
+    </div>
+  </div>
+
+  <!-- ÉTAPE 4 : OBJECTIFS -->
+  <div class="form-section" id="step-4">
+    <div class="section-header">
+      <div class="section-eyebrow">Étape 4 · Tes Objectifs</div>
+      <h2 class="section-title">Ce que tu veux transformer</h2>
+      <p class="section-desc">Pas des objectifs de résultats — des objectifs d'identité. Qui veux-tu devenir ?</p>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Quels domaines tu veux transformer en priorité ? <span>(coche 2 ou 3 max)</span></label>
+      <div class="checks-grid" id="objectifs-checks">
+        <div class="check-option" onclick="toggleCheck(this, 'objectifs')">
+          <div class="check-option-box"></div>
+          <div class="check-option-text">Ma connexion avec Allah (prières, Dhikr, Coran)</div>
+        </div>
+        <div class="check-option" onclick="toggleCheck(this, 'objectifs')">
+          <div class="check-option-box"></div>
+          <div class="check-option-text">Mon corps (sport, nutrition, sommeil)</div>
+        </div>
+        <div class="check-option" onclick="toggleCheck(this, 'objectifs')">
+          <div class="check-option-box"></div>
+          <div class="check-option-text">Ma discipline et ma productivité</div>
+        </div>
+        <div class="check-option" onclick="toggleCheck(this, 'objectifs')">
+          <div class="check-option-box"></div>
+          <div class="check-option-text">Mon mental et ma gestion des émotions</div>
+        </div>
+        <div class="check-option" onclick="toggleCheck(this, 'objectifs')">
+          <div class="check-option-box"></div>
+          <div class="check-option-text">Mon projet de vie / mes ambitions</div>
+        </div>
+        <div class="check-option" onclick="toggleCheck(this, 'objectifs')">
+          <div class="check-option-box"></div>
+          <div class="check-option-text">Mes relations et ma communauté</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Qu'est-ce qui t'a empêché de réussir jusqu'ici ? <span>(sois direct)</span></label>
+      <textarea class="form-textarea" id="q-blocages" placeholder="ex: je manque de constance, j'ai peur de l'échec, je me sens indigne, j'attends la motivation..."></textarea>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Combien de minutes par jour peux-tu consacrer à ta transformation ?</label>
+      <select class="form-select" id="q-temps">
+        <option value="15">15 minutes</option>
+        <option value="30" selected>30 minutes</option>
+        <option value="45">45 minutes</option>
+        <option value="60">1 heure</option>
+        <option value="90">1h30 ou plus</option>
+      </select>
+    </div>
+
+    <div class="form-nav">
+      <button class="btn-prev" onclick="prevStep(4)">← Retour</button>
+      <button class="btn-generate" onclick="generateProgramme()">Générer mon programme ✦</button>
+    </div>
+  </div>
+
+</div><!-- /questionnaire -->
+
+<!-- LOADING -->
+<div class="page" id="loading-screen" style="display:none;">
+  <div style="padding-top:80px;text-align:center;">
+    <div class="loading-spinner"></div>
+    <div class="loading-text">Analyse de ta situation en cours...</div>
+    <div id="loading-msg" style="font-size:0.85rem;color:var(--text-muted);margin-top:8px;">Croisant tes données avec les filtres cognitifs</div>
+  </div>
+</div>
+
+<!-- RÉSULTAT -->
+<div class="page" id="result-section">
+  <div id="result-content"></div>
+</div>
+
+<script>
+let currentStep = 1;
+const totalSteps = 4;
+
+const inputs = {
+  social: [],
+  identite: [],
+  objectifs: [],
+  sommeil: 5, energie: 5, alimentation: 5, sport: 5, stress: 5
+};
+
+// ── DONNÉES MIROIR ────────────────────────────────────────────
+// Lire les scores radar et les réponses texte du Processus Miroir
+function getMiroirData() {
+  try {
+    const values = JSON.parse(localStorage.getItem('miroir-values') || '{}');
+    const text   = JSON.parse(localStorage.getItem('miroir-text-data') || '{}');
+    return { values, text };
+  } catch(e) { return { values: {}, text: {} }; }
+}
+
+function startQuestionnaire() {
+  // Pré-remplir avec les données miroir si disponibles
+  const { values, text } = getMiroirData();
+
+  // Sliders physiques — corps → sport et sommeil
+  if (values.corps !== undefined) {
+    const corpsScore = Math.round(values.corps);
+    const sportVal   = document.getElementById('range-sport');
+    const sommeilVal = document.getElementById('range-sommeil');
+    if (sportVal)   { sportVal.value = corpsScore; inputs.sport = corpsScore;
+                      const v = document.getElementById('val-sport'); if(v) v.textContent = corpsScore; }
+    if (sommeilVal) { sommeilVal.value = corpsScore; inputs.sommeil = corpsScore;
+                      const v = document.getElementById('val-sommeil'); if(v) v.textContent = corpsScore; }
+  }
+  // Stress → mental
+  if (values.mental !== undefined) {
+    const mentalScore = Math.round(values.mental);
+    const stressVal = document.getElementById('range-stress');
+    if (stressVal) { stressVal.value = 10 - mentalScore; inputs.stress = 10 - mentalScore;
+                     const v = document.getElementById('val-stress'); if(v) v.textContent = 10 - mentalScore; }
+  }
+  // Relation à l'Islam → islamRelation
+  if (values.ame !== undefined) {
+    const ameScore = values.ame;
+    const islamSel = document.getElementById('q-islam');
+    if (islamSel) {
+      if (ameScore < 4)      islamSel.value = 'deconnecte';
+      else if (ameScore < 6) islamSel.value = 'culpabilite';
+      else if (ameScore < 8) islamSel.value = 'irregulier';
+      else                   islamSel.value = 'regulier';
+    }
+  }
+  // Vision depuis le miroir
+  if (text.projectionUp) {
+    const visionEl = document.getElementById('q-vision');
+    if (visionEl && !visionEl.value) visionEl.value = text.projectionUp;
+  }
+  // Douleurs / souffrances
+  if (text.souffrance || text.douleur) {
+    const doulEl = document.getElementById('q-douleurs');
+    if (doulEl && !doulEl.value) doulEl.value = text.souffrance || text.douleur;
+  }
+  // Blocages
+  if (text.blocage || text.obstacle) {
+    const blocEl = document.getElementById('q-blocages');
+    if (blocEl && !blocEl.value) blocEl.value = text.blocage || text.obstacle;
+  }
+
+  document.getElementById('hero-section').style.display = 'none';
+  document.getElementById('steps-bar').style.display = 'block';
+  document.getElementById('questionnaire').style.display = 'block';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function toggleCheck(el, group) {
+  el.classList.toggle('selected');
+  const text = el.querySelector('.check-option-text').textContent;
+  if (el.classList.contains('selected')) {
+    inputs[group].push(text);
+  } else {
+    inputs[group] = inputs[group].filter(t => t !== text);
+  }
+}
+
+function updateScale(key, val) {
+  inputs[key] = parseInt(val);
+  document.getElementById('val-' + key).textContent = val;
+}
+
+function nextStep(from) {
+  goToStep(from + 1);
+}
+
+function prevStep(from) {
+  goToStep(from - 1);
+}
+
+function goToStep(step) {
+  if (step < 1 || step > totalSteps) return;
+  document.querySelectorAll('.form-section').forEach(s => s.classList.remove('active'));
+  document.getElementById('step-' + step).classList.add('active');
+  document.querySelectorAll('.step-item').forEach((btn, i) => {
+    btn.classList.remove('active', 'done');
+    if (i + 1 < step) btn.classList.add('done');
+    if (i + 1 === step) btn.classList.add('active');
+  });
+  currentStep = step;
+  window.scrollTo({ top: document.getElementById('steps-bar').offsetTop - 10, behavior: 'smooth' });
+}
+
+function generateProgramme() {
+  // Récupérer les inputs
+  const prenom       = document.getElementById('q-prenom').value.trim() || 'Mon frère';
+  const occupation   = document.getElementById('q-occupation').value;
+  const freins       = document.getElementById('q-freins').value.trim();
+  const islamRelation= document.getElementById('q-islam').value;
+  const vision       = document.getElementById('q-vision').value.trim();
+  const douleurs     = document.getElementById('q-douleurs').value.trim();
+  const blocages     = document.getElementById('q-blocages').value.trim();
+  const temps        = document.getElementById('q-temps').value;
+
+  // Afficher le loading
+  document.getElementById('questionnaire').style.display = 'none';
+  document.getElementById('steps-bar').style.display = 'none';
+  document.getElementById('loading-screen').style.display = 'block';
+
+  const msgs = [
+    'Croisant tes données avec les filtres cognitifs…',
+    'Appliquant le filtre Anti-Neuromanie…',
+    'Construisant tes objectifs d\'identité (James Clear)…',
+    'Intégrant la plasticité cognitive (Carol Dweck)…',
+    'Générant ton programme islamique personnalisé…'
+  ];
+  let i = 0;
+  const interval = setInterval(() => {
+    document.getElementById('loading-msg').textContent = msgs[i % msgs.length];
+    i++;
+  }, 600);
+
+  setTimeout(() => {
+    clearInterval(interval);
+    document.getElementById('loading-screen').style.display = 'none';
+    const miroirData = getMiroirData();
+    buildResult({ prenom, occupation, freins, islamRelation, vision, douleurs, blocages, temps, miroir: miroirData });
+    document.getElementById('result-section').style.display = 'block';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, 3200);
+}
+
+function buildResult(data) {
+  const { prenom, occupation, islamRelation, vision, blocages, temps, freins, miroir } = data;
+  const objectifs = inputs.objectifs;
+  const identiteBlocks = inputs.identite;
+  const sommeil = inputs.sommeil;
+  const stress  = inputs.stress;
+  const sport   = inputs.sport;
+
+  // ── SCORES MIROIR ──────────────────────────────────────
+  const mv = (miroir && miroir.values) || {};
+  const mt = (miroir && miroir.text)   || {};
+
+  const scoreAme       = mv.ame       !== undefined ? mv.ame       : (islamRelation === 'regulier' ? 8 : islamRelation === 'irregulier' ? 5 : 3);
+  const scoreCorps     = mv.corps     !== undefined ? mv.corps     : sport;
+  const scoreMental    = mv.mental    !== undefined ? mv.mental    : (10 - stress);
+  const scoreRelations = mv.relations !== undefined ? mv.relations : 6;
+  const scoreObjectifs = mv.objectifs !== undefined ? mv.objectifs : (objectifs.length > 2 ? 7 : 4);
+
+  // Classer les dimensions du plus faible au plus fort → ordonne les priorités
+  const dimensions = [
+    { key: 'ame',       score: scoreAme,       label: 'Âme (رُّوح)'     },
+    { key: 'corps',     score: scoreCorps,     label: 'Corps (جِسْم)'    },
+    { key: 'mental',    score: scoreMental,    label: 'Esprit (عَقْل)'   },
+    { key: 'relations', score: scoreRelations, label: 'Relations (قلب)'  },
+    { key: 'objectifs', score: scoreObjectifs, label: 'Objectifs (نِيَّة)' }
+  ].sort((a, b) => a.score - b.score);
+
+  const priorite1 = dimensions[0]; // la plus faible
+  const priorite2 = dimensions[1];
+  const hasMiroirData = Object.keys(mv).length > 0;
+
+  // ── ANALYSE ALGORITHME ──────────────────────────────────
+  // Filtre Anti-Neuromanie
+  let niveauSystemique = freins.length > 30 ? 'elevé' : 'modéré';
+
+  // Filtre Identité — transformer blocages en identité (personnalisé par dimension prioritaire)
+  const identiteMap = {
+    ame:       `devenir le type de personne dont la journée commence et se termine avec Allah — pas quelqu'un qui "essaie de prier"`,
+    corps:     `devenir le type de personne qui honore son amanah corporelle chaque jour, par l'effort et la gratitude`,
+    mental:    `devenir le type de personne qui pense clair, agit avec calme, et ne laisse pas l'anxiété dicter ses choix`,
+    relations: `devenir le type de personne qui investit dans ses liens — famille, frères et sœurs, communauté`,
+    objectifs: `devenir le type de personne qui sait pourquoi elle se lève le matin — une identité, pas une liste de tâches`
+  };
+  const identiteObjectif = identiteMap[priorite1.key] || identiteMap.ame;
+
+  // Croyances limitantes
+  const croyances = identiteBlocks.slice(0, 3);
+  const reformulations = {
+    '"Je ne suis pas quelqu\'un de discipliné"': 'Je construis ma discipline chaque jour — c\'est une compétence, pas un trait fixe',
+    '"Je recommence mais j\'abandonne toujours"': 'Je suis quelqu\'un qui se relève. La rechute fait partie du chemin islamique (Tawba)',
+    '"Je ne mérite pas d\'être pardonné(e)"': 'Allah est Al-Ghaffâr — le Grand Pardonneur. Ma valeur ne dépend pas de ma perfection',
+    '"Je n\'ai pas le temps de me transformer"': 'Je peux réorganiser 15 minutes par jour — tout commence par Fajr',
+    '"Je ne suis pas fait(e) pour le sport / la santé"': 'Mon corps est une amanah — je peux commencer par 5 minutes',
+    '"Mon environnement m\'empêche de progresser"': 'Je peux agir sur mon environnement immédiat — commencer par ma chambre, mes horaires'
+  };
+
+  // Habitude atomique — basée sur la dimension la plus faible
+  const habitudeParDimension = {
+    ame:       islamRelation === 'deconnecte' ? 'récite Bismillah et lis un seul verset du Coran' : 'fais ton Dhikr du matin — Al-Fatiha et 3 Subhanallah',
+    corps:     sport < 4 ? 'fais 5 squats ou marche 5 minutes après Fajr' : 'prépare ton repas avec Bismillah et attention à la quantité',
+    mental:    'pose-toi 2 minutes, respire, et note une chose pour laquelle tu es reconnaissant(e)',
+    relations: 'envoie un message sincère à un proche — famille ou frère/sœur dans la foi',
+    objectifs: 'relis ta Déclaration d\'Identité à voix haute et visualise ta journée idéale — 3 minutes'
+  };
+  const habitudeBase = habitudeParDimension[priorite1.key];
+
+  const habitExistant = occupation === 'etudiant'
+    ? 'après avoir ouvert mon ordinateur le matin'
+    : occupation === 'travailleur'
+    ? 'après être arrivé(e) au travail'
+    : 'après le petit-déjeuner';
+
+  // Levier Tawakkul — personnalisé par profil
+  const leverTawakkul = priorite1.key === 'mental' || stress > 6
+    ? 'Dhikr de décompression : "حَسْبِيَ اللَّهُ وَنِعْمَ الوَكِيل" — répété 7 fois lors des moments de pression. Allah te suffit.'
+    : priorite1.key === 'ame'
+    ? 'Muraqaba quotidienne : 5 minutes de silence conscient avant Fajr — ressens la présence d\'Allah avant de commencer ta journée'
+    : 'Visualisation de l\'identité cible le matin — "Qui est-ce que je veux être aujourd\'hui ?" puis une action dans cette direction';
+
+  // Programme en minutes — pondéré par les scores miroir
+  const tempsInt = parseInt(temps);
+  const totalMins = tempsInt <= 15 ? 15 : tempsInt <= 30 ? 30 : tempsInt <= 45 ? 45 : 60;
+
+  // Pondération : la dimension la plus faible reçoit le plus de temps
+  const weights = { ame: scoreAme, corps: scoreCorps, mental: scoreMental };
+  const totalWeight = weights.ame + weights.corps + weights.mental || 1;
+  const invAme    = (10 - weights.ame)    + 1;
+  const invCorps  = (10 - weights.corps)  + 1;
+  const invMental = (10 - weights.mental) + 1;
+  const invTotal  = invAme + invCorps + invMental;
+  const repartition = {
+    spirituel: Math.max(5, Math.round(totalMins * invAme    / invTotal)),
+    corps:     Math.max(5, Math.round(totalMins * invCorps  / invTotal)),
+    mental:    Math.max(5, Math.round(totalMins * invMental / invTotal))
+  };
+
+  // Ajuster pour que la somme = totalMins
+  const somme = repartition.spirituel + repartition.corps + repartition.mental;
+  if (somme !== totalMins) repartition[priorite1.key === 'ame' ? 'spirituel' : priorite1.key === 'corps' ? 'corps' : 'mental'] += (totalMins - somme);
+
+  // ── CONTENU QUALITATIVE PAR PROFIL ─────────────────────
+  // Contenu Module 3 selon la dimension prioritaire
+  const mod3ParPriorite = {
+    ame: {
+      titre: 'Reconnecter avec Allah — Ton Pilier Fondamental',
+      intro: `Ton bilan miroir révèle que ta dimension spirituelle (score ${scoreAme}/10) est ton levier de transformation le plus puissant. Ce n'est pas une honte — c'est une information. Ibn Al-Qayyim disait : <em>"Le cœur ne peut trouver ni repos ni satisfaction dans autre chose qu'Allah."</em>`,
+      focus: `Avant même le sport ou la productivité : une seule prière consciente vaut mieux que dix mécaniques. Commence par Fajr — juste Fajr — et laisse le reste suivre. La recherche en neurosciences confirme ce que l'islam enseigne depuis 1400 ans : ancrer sa journée dans une pratique matinale rituelle restructure le cortex préfrontal.`,
+      verset: `"أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ" — C'est dans le rappel d'Allah que les cœurs trouvent leur quiétude. (13:28)`
+    },
+    corps: {
+      titre: 'Honorer ton Amanah Corporelle',
+      intro: `Ton bilan miroir indique que la dimension corps (score ${scoreCorps}/10) est celle où l'investissement sera le plus transformateur. Le Prophète ﷺ disait : <em>"Le croyant fort est meilleur et plus aimé d'Allah que le croyant faible."</em> — il parlait de force physique ET morale.`,
+      focus: `Ton programme ne commence pas par une salle de sport. Il commence par une marche de 10 minutes après Fajr, trois fois par semaine. La progression cérébrales (BDNF) qui suit l'exercice régulier améliore directement la concentration, l'humeur et la volonté — exactement ce dont tu as besoin pour tout le reste.`,
+      verset: `"وَأَعِدُّوا لَهُم مَّا اسْتَطَعْتُم مِّن قُوَّةٍ" — Préparez-vous avec toute la force que vous pouvez. (8:60) — La force commence par le corps.`
+    },
+    mental: {
+      titre: 'Clarté Cognitive & Paix Intérieure',
+      intro: `Ton bilan miroir indique un niveau de stress mental élevé (score mental ${scoreMental}/10). La neuroscience et l'islam convergent ici : un esprit saturé ne peut ni apprendre, ni décider, ni prier avec présence. Ta priorité n°1 est de réduire la charge cognitive.`,
+      focus: `Technique de vidange mentale (David Allen adapté) : chaque soir, 5 minutes à noter tout ce qui tourne dans ta tête — décisions en suspens, inquiétudes, tâches — dans JADIS Work. Une fois écrit, le cerveau peut lâcher. Combine avec Dhikr : "يَا حَيُّ يَا قَيُّومُ بِرَحْمَتِكَ أَسْتَغِيثُ" — 33 fois avant de dormir.`,
+      verset: `"لَا يُكَلِّفُ اللَّهُ نَفْسًا إِلَّا وُسْعَهَا" — Allah ne charge personne au-delà de sa capacité. (2:286) Tu n'as pas à tout gérer en même temps.`
+    },
+    relations: {
+      titre: 'Investir dans Tes Liens — Force Collective',
+      intro: `Ton bilan miroir montre que la dimension relations (score ${scoreRelations}/10) est sous-investie. Or les études sur la longévité, la résilience et la foi montrent une constante : <em>personne ne se transforme seul durablement.</em> Le Prophète ﷺ cherchait des compagnons. Tu as besoin d'un milieu.`,
+      focus: `Trois actions : (1) Rejoins ou renforce une relation avec un frère/sœur de foi qui te tire vers le haut. (2) Utilise le système Buddy dans JADIS. (3) Participe à la communauté — tes messages comptent. La psychologie sociale montre qu'annoncer son engagement à quelqu'un triple le taux de réussite.`,
+      verset: `"وَتَعَاوَنُوا عَلَى الْبِرِّ وَالتَّقْوَىٰ" — Entraidez-vous dans la vertu et la piété. (5:2)`
+    },
+    objectifs: {
+      titre: 'Trouver Ton Pourquoi — La Niyya au Centre',
+      intro: `Ton bilan miroir révèle un flou dans la dimension objectifs (score ${scoreObjectifs}/10). Ce n'est pas de la paresse — c'est de l'honnêteté. Agir sans clarté d'intention épuise. Le Prophète ﷺ a dit : <em>"Les actes ne valent que par leurs intentions."</em> Avant les habitudes, il y a la Niyya.`,
+      focus: `Exerce "Les 5 Pourquoi" sur ton objectif principal : demande-toi "pourquoi" cinq fois de suite jusqu'à toucher la vraie motivation. Simon Sinek appelle ça le Golden Circle — l'islam l'appelle Ikhlâs. Quand tu sais vraiment pourquoi tu veux changer, l'énergie vient naturellement.`,
+      verset: `"إِنَّمَا الْأَعْمَالُ بِالنِّيَّاتِ" — Les actes ne valent que par les intentions. (Bukhari 1)`
+    }
+  };
+
+  const mod3Content = mod3ParPriorite[priorite1.key] || mod3ParPriorite.ame;
+
+  // Profil de score miroir pour l'affichage
+  const profileBadge = hasMiroirData
+    ? `<div style="display:inline-flex;align-items:center;gap:8px;background:var(--olive-d

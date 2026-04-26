@@ -1,0 +1,3981 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JADIS — La Formation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;1,400&family=Source+Sans+3:wght@300;400;500;600;700&family=Amiri:ital,wght@0,400;0,700;1,400&family=Cormorant+Garamond:wght@400;600&display=swap" rel="stylesheet" />
+  <!-- API JADIS (remplace Firebase) -->
+  <script src="api-config.js"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════
+     GARDE D'AUTHENTIFICATION — JWT via API JADIS
+     Bloque l'accès direct sans login + abonnement vérifié.
+     Si chargé en iframe (dashboard), le parent a déjà tout
+     vérifié — on laisse passer sans toucher au DOM.
+════════════════════════════════════════════════════════ -->
+<script>
+(function() {
+  // En iframe depuis le dashboard : accès autorisé, le parent gère l'auth
+  if (window.self !== window.top) return;
+
+  // Accès standalone détecté — masquer le contenu pendant la vérification
+  document.documentElement.style.visibility = 'hidden';
+
+  var token = localStorage.getItem('jadis_token');
+  if (!token) { window.location.replace('dashboard.html'); return; }
+
+  fetch(JADIS_API_URL + '/auth/verify', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + token
+    }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (!data.valid) {
+      localStorage.removeItem('jadis_token');
+      window.location.replace('dashboard.html');
+      return;
+    }
+    if (data.isAdmin || data.isSubscriber) {
+      document.documentElement.style.visibility = '';
+    } else {
+      // Connecté mais pas abonné → retour au dashboard (paywall)
+      window.location.replace('dashboard.html?paywall=1');
+    }
+  })
+  .catch(function() {
+    // Erreur réseau → fallback localStorage
+    try {
+      var subs = JSON.parse(localStorage.getItem('jadis_subscribers') || '{"emails":[]}');
+      var tok  = JSON.parse(atob(token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+      var em   = (tok.email || '').toLowerCase();
+      if (subs.emails.map(function(e){ return e.toLowerCase(); }).indexOf(em) !== -1
+          || isAdminEmail(em)) {
+        document.documentElement.style.visibility = '';
+      } else {
+        window.location.replace('dashboard.html?paywall=1');
+      }
+    } catch(e) {
+      window.location.replace('dashboard.html');
+    }
+  });
+})();
+</script>
+
+<style>
+  .site-topnav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 9000;
+    background: rgba(10,25,20,0.97); backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(196,163,90,0.2);
+    display: flex; align-items: center; gap: 0;
+    height: 44px; padding: 0 1.5rem;
+  }
+  .site-topnav-logo {
+    display: flex; align-items: center; gap: 8px;
+    margin-right: auto; text-decoration: none;
+  }
+  .site-topnav-logo-name {
+    font-family: 'Cormorant Garamond', serif; font-size: 1.1rem;
+    color: #fff; font-weight: 500; letter-spacing: 0.2em;
+  }
+  .site-topnav-logo-sub { font-size: 0.6rem; color: #C9A84C; letter-spacing: 0.1em; margin-top: 1px; }
+  .site-topnav a.tn-link {
+    font-size: 0.75rem; font-weight: 500; letter-spacing: 0.08em;
+    text-transform: uppercase; color: rgba(255,255,255,0.5);
+    text-decoration: none; padding: 0 1rem; height: 100%;
+    display: flex; align-items: center; transition: color 0.2s;
+    border: none; background: none; cursor: pointer;
+  }
+  .site-topnav a.tn-link:hover { color: rgba(255,255,255,0.9); }
+  .site-topnav a.tn-link.active { color: #C9A84C; }
+  .site-topnav .tn-sep { width: 1px; height: 18px; background: rgba(255,255,255,0.1); }
+  #root { padding-top: 44px; }
+</style>
+<nav class="site-topnav">
+  <a href="dashboard.html" class="tn-link" style="font-family:'Cormorant Garamond',serif;font-size:1rem;letter-spacing:0.15em;color:rgba(255,255,255,0.85);padding:0 1rem 0 0;">← Dashboard</a>
+  <div class="tn-sep"></div>
+  <a href="landing.html" class="tn-link">Accueil</a>
+</nav>
+
+  <div id="root"></div>
+  <script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef } = React;
+function useChapterProgress() {
+  const [completed, setCompleted] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("chapter_progress") || "[]"); }
+    catch { return []; }
+  });
+  useEffect(() => {
+    const sync = () => {
+      try { setCompleted(JSON.parse(localStorage.getItem("chapter_progress") || "[]")); }
+      catch {}
+    };
+    window.addEventListener("chapterCompleted", sync);
+    return () => window.removeEventListener("chapterCompleted", sync);
+  }, []);
+  return completed;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   GLOW UP ISLAMIQUE — LE RETOUR DU CROYANT
+   Formation complète du musulman moderne
+   Corps · Âme · Mindset · Objectifs
+   ═══════════════════════════════════════════════════════════════ */
+
+const COLORS = {
+  teal: "#2A5C50",
+  tealLight: "#2A5C50",
+  tealPale: "#E8F5F0",
+  gold: "#C4A35A",
+  goldLight: "#E8D5A0",
+  cream: "#FBF8F2",
+  dark: "#1A1A1A",
+  darkSoft: "#2D2D2D",
+  gray: "#6B7280",
+  grayLight: "#9CA3AF",
+  white: "#FFFFFF",
+  warmBg: "#F9F6EE",
+};
+
+const CHAPTERS = [
+  { id: "home", title: "Accueil" },
+  { id: "intro", title: "Introduction" },
+  { id: "islam", title: "Partie 1 — L'Islam" },
+  { id: "environnement", title: "Partie 2 — L'Environnement" },
+  { id: "comportements", title: "Partie 3 — L'Origine des Comportements" },
+  { id: "reparation", title: "Partie 4 — Réparation Comportementale" },
+  { id: "neurosciences", title: "Partie 5 — Neurosciences & Identité" },
+  { id: "monde", title: "Partie 6 — Le Monde Qui T'a Fabriqué" },
+  { id: "productivite", title: "Partie 7 — Productivité & Tawakkul" },
+  { id: "rechute", title: "Partie 8 — Rechute & Retour" },
+  { id: "programme", title: "Programme 90 Jours" },
+];
+
+// ────── STYLE CONSTANTS ──────
+const globalStyles = `
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;1,400&family=Source+Sans+3:wght@300;400;500;600;700&family=Amiri:ital,wght@0,400;0,700;1,400&display=swap');
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+:root {
+  --teal: ${COLORS.teal};
+  --teal-light: ${COLORS.tealLight};
+  --teal-pale: ${COLORS.tealPale};
+  --gold: ${COLORS.gold};
+  --gold-light: ${COLORS.goldLight};
+  --cream: ${COLORS.cream};
+  --dark: ${COLORS.dark};
+  --gray: ${COLORS.gray};
+}
+
+body { font-family: 'Source Sans 3', sans-serif; background: ${COLORS.cream}; color: ${COLORS.dark}; }
+
+.arabic-text {
+  font-family: 'Amiri', serif;
+  font-size: 1.4em;
+  line-height: 1.8;
+  color: ${COLORS.teal};
+  direction: rtl;
+  text-align: center;
+}
+
+.heading-display {
+  font-family: 'Playfair Display', serif;
+  font-weight: 700;
+  color: ${COLORS.dark};
+  letter-spacing: -0.02em;
+}
+
+.gold-accent { color: ${COLORS.gold}; }
+.teal-accent { color: ${COLORS.teal}; }
+
+@keyframes fadeInUp {
+  from { opacity:0; transform:translateY(6px); }
+  to { opacity:1; transform:translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity:0; }
+  to { opacity:1; }
+}
+
+@keyframes panelReveal {
+  from { opacity:0; transform:scale(0.993); }
+  to { opacity:1; transform:scale(1); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+.fade-in-up { animation: fadeIn 0.25s ease both; }
+.fade-in { animation: fadeIn 0.25s ease both; }
+
+.section-content p {
+  font-size: 1.05rem;
+  line-height: 1.85;
+  color: ${COLORS.darkSoft};
+  margin-bottom: 1.2rem;
+  font-weight: 400;
+}
+
+.section-content h3 {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.5rem;
+  color: ${COLORS.teal};
+  margin: 2.5rem 0 1rem 0;
+  font-weight: 600;
+}
+
+.section-content h4 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: ${COLORS.dark};
+  margin: 2rem 0 0.8rem 0;
+}
+
+.section-content blockquote {
+  border-left: 3px solid ${COLORS.gold};
+  padding: 1.2rem 1.5rem;
+  margin: 1.5rem 0;
+  background: linear-gradient(135deg, ${COLORS.cream}, rgba(196,163,90,0.06));
+  border-radius: 0 12px 12px 0;
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-size: 1.1rem;
+  color: ${COLORS.teal};
+  line-height: 1.7;
+}
+
+.section-content .study-box {
+  background: linear-gradient(135deg, ${COLORS.tealPale}, rgba(27,107,95,0.08));
+  border: 1px solid rgba(27,107,95,0.15);
+  border-radius: 12px;
+  padding: 1.2rem 1.5rem;
+  margin: 1.5rem 0;
+  font-size: 0.95rem;
+}
+
+.section-content .study-box .study-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: ${COLORS.tealLight};
+  margin-bottom: 0.4rem;
+}
+
+.section-content .action-box {
+  background: linear-gradient(135deg, rgba(196,163,90,0.08), rgba(196,163,90,0.03));
+  border: 1px solid rgba(196,163,90,0.25);
+  border-radius: 12px;
+  padding: 1.2rem 1.5rem;
+  margin: 1.5rem 0;
+}
+
+.section-content .action-box .action-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: ${COLORS.gold};
+  margin-bottom: 0.4rem;
+}
+
+.section-content .question-box {
+  background: ${COLORS.white};
+  border: 1px solid rgba(27,107,95,0.12);
+  border-radius: 12px;
+  padding: 1rem 1.5rem;
+  margin: 0.6rem 0;
+  font-style: italic;
+  color: ${COLORS.gray};
+  font-size: 0.98rem;
+  transition: all 0.2s;
+}
+.section-content .question-box:hover {
+  border-color: ${COLORS.gold};
+  transform: translateX(4px);
+}
+
+.section-content .protocol-step {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  margin: 1rem 0;
+  padding: 1rem;
+  background: ${COLORS.white};
+  border-radius: 12px;
+  border: 1px solid rgba(0,0,0,0.05);
+}
+
+.section-content .protocol-step .step-num {
+  min-width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: ${COLORS.teal};
+  color: ${COLORS.white};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.section-content .grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+@media (max-width: 600px) {
+  .section-content .grid-2 { grid-template-columns: 1fr; }
+}
+
+.section-content .card {
+  background: ${COLORS.white};
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: 14px;
+  padding: 1.5rem;
+  transition: all 0.3s;
+}
+.section-content .card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(27,107,95,0.08);
+}
+
+.section-content .card-title {
+  font-family: 'Playfair Display', serif;
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: ${COLORS.teal};
+  margin-bottom: 0.6rem;
+}
+
+/* ── Verset Box ── */
+.verset-box {
+  background: linear-gradient(135deg, rgba(27,107,95,0.04), rgba(196,163,90,0.04));
+  border: 1px solid rgba(196,163,90,0.3);
+  border-radius: 16px;
+  padding: 1.8rem 2rem;
+  margin: 2rem 0;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.verset-box::before {
+  content: '﷽';
+  position: absolute;
+  top: -10px;
+  right: 20px;
+  font-family: 'Amiri', serif;
+  font-size: 3rem;
+  color: rgba(196,163,90,0.08);
+  line-height: 1;
+}
+.verset-box .verset-arabic {
+  font-family: 'Amiri', serif;
+  font-size: 1.6rem;
+  line-height: 2.2;
+  color: ${COLORS.teal};
+  direction: rtl;
+  text-align: right;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(196,163,90,0.2);
+}
+.verset-box .verset-french {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-size: 1.05rem;
+  color: ${COLORS.darkSoft};
+  line-height: 1.7;
+  margin: 0.8rem 0;
+}
+.verset-box .verset-source {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: ${COLORS.gold};
+  margin-top: 0.8rem;
+}
+
+/* ── Hadith Box ── */
+.hadith-box {
+  background: linear-gradient(135deg, rgba(27,107,95,0.06), rgba(27,107,95,0.02));
+  border-left: 4px solid ${COLORS.teal};
+  border-radius: 0 14px 14px 0;
+  padding: 1.5rem 1.8rem;
+  margin: 1.8rem 0;
+}
+.hadith-box .hadith-arabic {
+  font-family: 'Amiri', serif;
+  font-size: 1.35rem;
+  line-height: 2;
+  color: ${COLORS.teal};
+  direction: rtl;
+  text-align: right;
+  margin-bottom: 1rem;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid rgba(27,107,95,0.12);
+}
+.hadith-box .hadith-french {
+  font-style: italic;
+  font-size: 1rem;
+  color: ${COLORS.darkSoft};
+  line-height: 1.7;
+  margin: 0.5rem 0;
+}
+.hadith-box .hadith-source {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+  font-size: 0.82rem;
+}
+.hadith-box .hadith-source-label {
+  background: ${COLORS.teal};
+  color: white;
+  padding: 0.2rem 0.6rem;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+}
+.hadith-box .hadith-source-text {
+  color: ${COLORS.gray};
+  font-weight: 500;
+}
+
+/* ── Key Takeaway ── */
+.key-takeaway {
+  background: linear-gradient(135deg, ${COLORS.dark}, ${COLORS.darkSoft});
+  border-radius: 16px;
+  padding: 2rem;
+  margin: 3rem 0 1rem;
+  color: white;
+}
+.key-takeaway-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: ${COLORS.goldLight};
+  margin-bottom: 1.2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.key-takeaway-item {
+  display: flex;
+  gap: 0.8rem;
+  align-items: flex-start;
+  margin: 0.7rem 0;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: rgba(255,255,255,0.88);
+}
+.key-takeaway-bullet {
+  color: ${COLORS.gold};
+  font-weight: 700;
+  min-width: 16px;
+  margin-top: 1px;
+}
+
+/* ── Checklist ── */
+.checklist-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+  padding: 0.7rem 1rem;
+  margin: 0.4rem 0;
+  background: ${COLORS.white};
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,0.05);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.95rem;
+  color: ${COLORS.darkSoft};
+}
+.checklist-item:hover { border-color: rgba(27,107,95,0.2); background: ${COLORS.tealPale}; }
+.checklist-item.checked { opacity: 0.6; text-decoration: line-through; color: ${COLORS.gray}; }
+.checklist-checkbox {
+  width: 20px; height: 20px; min-width: 20px;
+  border-radius: 50%;
+  border: 2px solid rgba(27,107,95,0.3);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.7rem; transition: all 0.2s;
+}
+.checklist-item.checked .checklist-checkbox {
+  background: ${COLORS.teal}; border-color: ${COLORS.teal}; color: white;
+}
+
+/* ── Tip Box ── */
+.tip-box {
+  background: linear-gradient(135deg, rgba(196,163,90,0.1), rgba(196,163,90,0.04));
+  border: 1px solid rgba(196,163,90,0.25);
+  border-radius: 12px;
+  padding: 1.2rem 1.5rem;
+  margin: 1.5rem 0;
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+.tip-content { font-size: 0.95rem; color: ${COLORS.darkSoft}; line-height: 1.65; }
+
+/* ── Flip Card ── */
+.flip-card {
+  cursor: pointer;
+  margin: 1.5rem 0;
+  border-radius: 12px;
+  user-select: none;
+}
+.flip-card-back {
+  display: none;
+}
+.flip-card.is-flipped .flip-card-front {
+  display: none;
+}
+.flip-card.is-flipped .flip-card-back {
+  display: block;
+  animation: flipReveal 0.4s ease-out;
+}
+@keyframes flipReveal {
+  0%   { transform: perspective(600px) rotateY(-90deg); opacity: 0; }
+  50%  { opacity: 0.5; }
+  100% { transform: perspective(600px) rotateY(0deg); opacity: 1; }
+}
+.flip-hint {
+  font-size: 0.75rem;
+  color: var(--gray);
+  font-style: italic;
+  margin-top: 0.5rem;
+  opacity: 0.65;
+  letter-spacing: 0.02em;
+}
+
+/* ── Question Pager ── */
+.question-pager {
+  margin: 1.5rem 0;
+  background: var(--cream);
+  border: 1px solid rgba(27,107,95,0.1);
+  border-radius: 16px;
+  padding: 1.5rem;
+}
+.question-pager-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.8rem;
+}
+.question-pager-count {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--teal);
+}
+.question-pager-bar-track {
+  height: 3px;
+  background: rgba(27,107,95,0.1);
+  border-radius: 2px;
+  margin-bottom: 1.5rem;
+  overflow: hidden;
+}
+.question-pager-bar-fill {
+  height: 100%;
+  background: var(--teal);
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+.question-pager-content {
+  min-height: 80px;
+  display: flex;
+  align-items: center;
+}
+.question-pager-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1.2rem;
+  gap: 0.8rem;
+}
+.question-pager-btn {
+  padding: 0.5rem 1.2rem;
+  border-radius: 8px;
+  border: 1px solid rgba(27,107,95,0.2);
+  background: transparent;
+  color: var(--teal);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: 'Source Sans 3', sans-serif;
+}
+.question-pager-btn:hover:not(:disabled) {
+  background: var(--teal-pale);
+  border-color: var(--teal);
+}
+.question-pager-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.question-pager-btn.primary {
+  background: var(--teal);
+  color: white;
+  border-color: var(--teal);
+}
+.question-pager-btn.primary:hover:not(:disabled) {
+  background: var(--teal-light);
+}
+
+/* ── Chapter Completion ── */
+.chapter-completion {
+  margin: 3rem 0 1rem;
+  padding: 2rem;
+  background: linear-gradient(135deg, rgba(27,107,95,0.04), rgba(196,163,90,0.04));
+  border: 1px solid rgba(196,163,90,0.2);
+  border-radius: 16px;
+  text-align: center;
+}
+.chapter-completion-done {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  color: var(--teal);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.chapter-complete-btn {
+  background: linear-gradient(135deg, var(--teal), var(--teal-light));
+  color: white;
+  border: none;
+  border-radius: 12px;
+  padding: 0.9rem 2rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: 'Source Sans 3', sans-serif;
+  letter-spacing: 0.01em;
+}
+.chapter-complete-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(27,107,95,0.25);
+}
+
+/* ── Wow Completion Screen ── */
+.wow-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #030810;
+  animation: wowBgIn 0.35s ease forwards;
+}
+@keyframes wowBgIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Background SVG Islamic geometry — subtle */
+.wow-geo-bg {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  animation: wowGeoIn 0.6s ease 0.8s forwards;
+}
+@keyframes wowGeoIn {
+  to { opacity: 1; }
+}
+
+/* Particle container */
+.wow-particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.wow-p {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-radius: 50%;
+  transform-origin: center;
+  animation: wowParticle var(--dur) cubic-bezier(0.2, 0.8, 0.4, 1) var(--delay) both;
+}
+@keyframes wowParticle {
+  0%   { transform: translate(-50%, -50%) rotate(var(--angle)) translateX(0) scale(1); opacity: 1; }
+  70%  { opacity: 1; }
+  100% { transform: translate(-50%, -50%) rotate(var(--angle)) translateX(var(--dist)) scale(0.2); opacity: 0; }
+}
+.wow-p-diamond {
+  border-radius: 2px;
+  transform-origin: center;
+  animation: wowParticleDiamond var(--dur) cubic-bezier(0.2, 0.8, 0.4, 1) var(--delay) both;
+}
+@keyframes wowParticleDiamond {
+  0%   { transform: translate(-50%, -50%) rotate(var(--angle)) translateX(0) rotate(45deg) scale(1); opacity: 1; }
+  70%  { opacity: 0.9; }
+  100% { transform: translate(-50%, -50%) rotate(var(--angle)) translateX(var(--dist)) rotate(135deg) scale(0.1); opacity: 0; }
+}
+
+/* Ring pulsé */
+.wow-ring-wrap {
+  position: relative;
+  width: 140px;
+  height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 2rem;
+}
+.wow-ring-pulse {
+  position: absolute;
+  inset: -20px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(196,163,90,0.18) 0%, transparent 70%);
+  animation: wowRingPulse 2s ease-in-out 0.4s infinite;
+}
+@keyframes wowRingPulse {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50%       { transform: scale(1.18); opacity: 0.3; }
+}
+.wow-ring-outer {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid rgba(196,163,90,0.35);
+  animation: wowRingIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.2s both;
+}
+.wow-ring-inner {
+  position: absolute;
+  inset: 10px;
+  border-radius: 50%;
+  border: 2px solid rgba(196,163,90,0.6);
+  animation: wowRingIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.3s both;
+}
+@keyframes wowRingIn {
+  from { transform: scale(0.4); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+.wow-check-circle {
+  width: 100px;
+  height: 100px;
+  background: linear-gradient(135deg, #2A5C50, #0C2620);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 40px rgba(27,107,95,0.45), 0 0 80px rgba(27,107,95,0.2);
+  animation: wowCheckIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.2s both;
+}
+@keyframes wowCheckIn {
+  from { transform: scale(0); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+.wow-check-svg {
+  width: 48px;
+  height: 48px;
+}
+.wow-check-path {
+  stroke-dasharray: 60;
+  stroke-dashoffset: 60;
+  animation: wowCheckDraw 0.6s cubic-bezier(0.4, 0, 0.2, 1) 0.7s forwards;
+}
+@keyframes wowCheckDraw {
+  to { stroke-dashoffset: 0; }
+}
+
+/* Card content */
+.wow-card {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  max-width: 640px;
+  width: 100%;
+  padding: 0 2rem;
+}
+.wow-arabic {
+  font-family: 'Amiri', serif;
+  font-size: 1.6rem;
+  color: rgba(196,163,90,0.7);
+  direction: rtl;
+  margin-bottom: 0.4rem;
+  opacity: 0;
+  animation: wowSlideUp 0.6s ease 1.0s forwards;
+}
+.wow-title {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(2.4rem, 7vw, 4rem);
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1;
+  margin-bottom: 0.5rem;
+  opacity: 0;
+  animation: wowSlideUp 0.6s ease 1.1s forwards;
+}
+.wow-title span {
+  color: #C4A35A;
+}
+.wow-chapter-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.3);
+  margin-bottom: 1.6rem;
+  opacity: 0;
+  animation: wowSlideUp 0.6s ease 1.2s forwards;
+}
+.wow-progress-track {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 1.6rem;
+  opacity: 0;
+  animation: wowSlideUp 0.6s ease 1.3s forwards;
+}
+.wow-progress-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.1);
+  transition: background 0.3s;
+}
+.wow-progress-dot.lit {
+  background: #C4A35A;
+  box-shadow: 0 0 8px rgba(196,163,90,0.6);
+}
+.wow-progress-dot.current {
+  width: 10px;
+  height: 10px;
+  background: #C4A35A;
+  box-shadow: 0 0 14px rgba(196,163,90,0.9);
+  animation: wowDotPulse 1.2s ease-in-out 1.4s infinite;
+}
+@keyframes wowDotPulse {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.4); }
+}
+.wow-message {
+  font-size: 0.88rem;
+  color: rgba(255,255,255,0.5);
+  line-height: 1.8;
+  font-style: italic;
+  max-width: 360px;
+  margin: 0 auto 2rem;
+  opacity: 0;
+  animation: wowSlideUp 0.6s ease 1.4s forwards;
+}
+.wow-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(135deg, #2A5C50, #2A5C50);
+  color: white;
+  border: none;
+  border-radius: 100px;
+  padding: 0.9rem 2.8rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: 'Source Sans 3', sans-serif;
+  letter-spacing: 0.04em;
+  opacity: 0;
+  animation: wowSlideUp 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) 1.6s forwards;
+  box-shadow: 0 8px 28px rgba(27,107,95,0.4);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.wow-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 36px rgba(27,107,95,0.55);
+}
+.wow-btn-arrow {
+  display: inline-block;
+  transition: transform 0.2s;
+}
+.wow-btn:hover .wow-btn-arrow {
+  transform: translateX(4px);
+}
+@keyframes wowSlideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Sidebar Progress Bar ── */
+.sidebar-progress-wrap {
+  padding: 1rem 1.5rem 1.2rem;
+  border-bottom: 1px solid rgba(0,0,0,0.04);
+  margin-bottom: 0.4rem;
+}
+.sidebar-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.55rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: ${COLORS.grayLight};
+}
+.sidebar-progress-track {
+  height: 3px;
+  background: rgba(0,0,0,0.06);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.sidebar-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, ${COLORS.teal}, ${COLORS.gold});
+  border-radius: 4px;
+  transition: width 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ── Chapter Header Hero ── */
+.chapter-header-hero {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(160deg, #0C2620 0%, #1a3d34 60%, #1a3d34 100%);
+  border-radius: 20px;
+  padding: 3.5rem 2.5rem;
+  margin-bottom: 3rem;
+  text-align: center;
+}
+.chapter-header-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 0%, rgba(196,163,90,0.14) 0%, transparent 65%);
+  pointer-events: none;
+}
+.chapter-header-hero .hero-eyebrow {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.28em;
+  color: rgba(196,163,90,0.75);
+  margin-bottom: 1.2rem;
+}
+.chapter-header-hero h2 {
+  font-family: 'Playfair Display', serif;
+  font-size: 2.4rem;
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1.15;
+  margin-bottom: 0;
+  letter-spacing: -0.02em;
+}
+.chapter-header-hero .hero-sep {
+  width: 36px;
+  height: 1px;
+  background: rgba(196,163,90,0.45);
+  margin: 1.5rem auto;
+}
+.chapter-header-hero .hero-verse {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-size: 1rem;
+  color: rgba(255,255,255,0.6);
+  line-height: 1.75;
+  max-width: 480px;
+  margin: 0 auto;
+}
+.chapter-header-hero .hero-verse-ref {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(196,163,90,0.65);
+  margin-top: 0.7rem;
+}
+
+/* ── Exercise Timer ── */
+.exercise-timer {
+  margin-top: 1.4rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(196,163,90,0.2);
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+.timer-display {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: ${COLORS.teal};
+  letter-spacing: 0.04em;
+  min-width: 58px;
+}
+.timer-btn {
+  padding: 0.3rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid rgba(27,107,95,0.22);
+  background: transparent;
+  color: ${COLORS.teal};
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: 'Source Sans 3', sans-serif;
+  transition: all 0.15s;
+}
+.timer-btn:hover { background: ${COLORS.tealPale}; }
+.timer-btn.active { background: ${COLORS.teal}; color: white; border-color: ${COLORS.teal}; }
+
+/* ── Chapter Notes ── */
+.notes-box {
+  margin: 2.5rem 0 1rem;
+  background: ${COLORS.white};
+  border: 1px solid rgba(27,107,95,0.1);
+  border-radius: 16px;
+  overflow: hidden;
+}
+.notes-box-header {
+  padding: 0.9rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: rgba(27,107,95,0.025);
+  border-bottom: 1px solid rgba(27,107,95,0.07);
+  cursor: pointer;
+  user-select: none;
+}
+.notes-box-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: ${COLORS.teal};
+  flex: 1;
+}
+.notes-box textarea {
+  width: 100%;
+  min-height: 130px;
+  border: none;
+  outline: none;
+  padding: 1.2rem 1.5rem;
+  font-family: 'Source Sans 3', sans-serif;
+  font-size: 0.95rem;
+  color: ${COLORS.darkSoft};
+  background: transparent;
+  resize: vertical;
+  line-height: 1.8;
+  display: block;
+}
+.notes-save-status {
+  padding: 0.35rem 1.5rem 0.7rem;
+  font-size: 0.73rem;
+  color: ${COLORS.grayLight};
+  text-align: right;
+  font-style: italic;
+}
+
+/* ── Onboarding ── */
+.onboarding-overlay {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(160deg, #080614 0%, #0c1f1c 55%, #0f2820 100%);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  animation: fadeIn 0.5s ease;
+}
+.onboarding-card {
+  max-width: 520px;
+  width: 100%;
+  text-align: center;
+}
+.onboarding-prog-track {
+  height: 2px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+  margin-bottom: 2.5rem;
+  overflow: hidden;
+}
+.onboarding-prog-fill {
+  height: 100%;
+  background: linear-gradient(90deg, ${COLORS.gold}, ${COLORS.goldLight});
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+.onboarding-step-lbl {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(196,163,90,0.6);
+  margin-bottom: 1rem;
+}
+.onboarding-question {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.75rem;
+  color: white;
+  line-height: 1.3;
+  margin-bottom: 2.2rem;
+  font-weight: 600;
+}
+.onboarding-option {
+  width: 100%;
+  padding: 0.95rem 1.4rem;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.75);
+  font-size: 0.98rem;
+  font-family: 'Source Sans 3', sans-serif;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 0.6rem;
+  display: block;
+  text-align: left;
+}
+.onboarding-option:hover {
+  background: rgba(196,163,90,0.1);
+  border-color: rgba(196,163,90,0.35);
+  color: white;
+}
+
+/* ── Focus Mode ── */
+.focus-mode-content .section-content p { line-height: 2.05; font-size: 1.08rem; }
+.focus-exit-btn {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  z-index: 100;
+  background: ${COLORS.teal};
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 0.55rem 1.2rem;
+  font-family: 'Source Sans 3', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(27,107,95,0.3);
+  transition: all 0.2s;
+  letter-spacing: 0.02em;
+}
+.focus-exit-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(27,107,95,0.35); }
+`;
+
+// ────── SUB-COMPONENTS ──────
+
+function VersetBox({ arabic, french, sourate, numero }) {
+  return (
+    <div className="verset-box">
+      <div className="verset-arabic">{arabic}</div>
+      <div className="verset-french">« {french} »</div>
+      <div className="verset-source">{sourate} — {numero}</div>
+    </div>
+  );
+}
+
+function HadithBox({ arabic, french, source, grade }) {
+  return (
+    <div className="hadith-box">
+      {arabic && <div className="hadith-arabic">{arabic}</div>}
+      <div className="hadith-french">« {french} »</div>
+      <div className="hadith-source">
+        <span className="hadith-source-label">Hadith</span>
+        <span className="hadith-source-text">{source}</span>
+        {grade && <span style={{ color: "#2A5C50", fontSize: "0.78rem", fontWeight: 600 }}>· {grade}</span>}
+      </div>
+    </div>
+  );
+}
+
+function KeyTakeaway({ items }) {
+  return (
+    <div className="key-takeaway">
+      <div className="key-takeaway-title">Points essentiels à retenir</div>
+      <div className="grid-2">
+        {items.map((item, i) => (
+          <FlipCard
+            key={i}
+            front={
+              <div style={{
+                padding: "1rem", borderRadius: 8, minHeight: 64,
+                display: "flex", alignItems: "center", gap: "0.6rem",
+                background: "rgba(255,255,255,0.05)",
+                border: "1px solid rgba(255,255,255,0.08)"
+              }}>
+                <span style={{ color: COLORS.gold, fontWeight: 700, fontSize: "0.9rem" }}>→</span>
+                <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "0.8rem", fontStyle: "italic" }}>
+                  Point {i + 1} — Cliquer pour révéler
+                </span>
+              </div>
+            }
+            back={
+              <div style={{
+                padding: "1rem", borderRadius: 8,
+                background: "rgba(255,255,255,0.08)",
+                border: "1px solid rgba(255,255,255,0.12)"
+              }}>
+                <div className="key-takeaway-item">
+                  <span className="key-takeaway-bullet">→</span>
+                  <span>{item}</span>
+                </div>
+              </div>
+            }
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Tip({ children }) {
+  return (
+    <div className="tip-box">
+      <div className="tip-content">{children}</div>
+    </div>
+  );
+}
+
+function ChecklistBox({ title, items }) {
+  const [checked, setChecked] = useState(new Set());
+  const toggle = (i) => setChecked(prev => {
+    const next = new Set(prev);
+    next.has(i) ? next.delete(i) : next.add(i);
+    return next;
+  });
+  return (
+    <div style={{ margin: "1.5rem 0" }}>
+      {title && <h4 style={{ marginBottom: "0.8rem" }}>{title}</h4>}
+      {items.map((item, i) => (
+        <div key={i} className={`checklist-item${checked.has(i) ? " checked" : ""}`} onClick={() => toggle(i)}>
+          <div className="checklist-checkbox">
+            {checked.has(i) && (
+              <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                <path d="M1 4L3.8 7L9 1" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            )}
+          </div>
+          <span>{item}</span>
+        </div>
+      ))}
+      <div style={{ fontSize: "0.8rem", color: "#9CA3AF", marginTop: "0.5rem", textAlign: "right" }}>
+        {checked.size}/{items.length} accompli{checked.size > 1 ? "s" : ""}
+      </div>
+    </div>
+  );
+}
+
+function ProgressPath({ completed, total }) {
+  const pct = completed / total;
+  const sunR = 7 + pct * 20;
+  const sunOpacity = 0.3 + pct * 0.7;
+  const glowR = sunR + 18 + pct * 22;
+
+  return (
+    <svg viewBox="0 0 400 210" xmlns="http://www.w3.org/2000/svg"
+      style={{ width: "100%", maxWidth: 400, display: "block", margin: "0 auto" }}>
+      <defs>
+        <linearGradient id="pp-sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#07051a" />
+          <stop offset="60%" stopColor="#0c1f1c" />
+          <stop offset="100%" stopColor="#152e28" />
+        </linearGradient>
+        <radialGradient id="pp-glow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#C4A35A" stopOpacity={sunOpacity} />
+          <stop offset="100%" stopColor="#C4A35A" stopOpacity="0" />
+        </radialGradient>
+        <linearGradient id="pp-road" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#221808" />
+          <stop offset="100%" stopColor="#4a3820" />
+        </linearGradient>
+        <linearGradient id="pp-ground" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#261a08" />
+          <stop offset="100%" stopColor="#140e04" />
+        </linearGradient>
+      </defs>
+
+      <rect width="400" height="210" fill="url(#pp-sky)" />
+      <ellipse cx="200" cy="82" rx={glowR} ry={glowR * 0.65} fill="url(#pp-glow)" />
+      <circle cx="200" cy="82" r={sunR} fill="#C4A35A" opacity={Math.min(sunOpacity + 0.1, 1)} />
+      <path d="M 0 138 Q 200 128 400 138 L 400 210 L 0 210 Z" fill="url(#pp-ground)" />
+      <path d="M 152 210 L 192 84 L 208 84 L 248 210 Z" fill="url(#pp-road)" />
+
+      {[0.12, 0.32, 0.52, 0.72, 0.88].map((t, i) => {
+        const y = 210 - t * 126;
+        const w = Math.max(1.5 - t * 1.1, 0.3);
+        const h = Math.max(7 - t * 5, 1.5);
+        return <rect key={i} x={200 - w / 2} y={y} width={w} height={h} fill="#C4A35A" opacity="0.2" rx="0.5" />;
+      })}
+
+      {Array.from({ length: total }, (_, i) => {
+        const t = (i + 0.5) / total;
+        const y = 210 - t * 126;
+        const roadHalfW = (1 - t) * 42 + 8;
+        const side = i % 2 === 0 ? -1 : 1;
+        const x = 200 + side * roadHalfW * 0.52;
+        const r = Math.max(3.8 - t * 2.2, 1.2);
+        const isLit = i < completed;
+        return (
+          <g key={i}>
+            {isLit && <circle cx={x} cy={y} r={r + 5} fill="#C4A35A" opacity="0.15" />}
+            <circle cx={x} cy={y} r={r} fill={isLit ? "#C4A35A" : "rgba(255,255,255,0.12)"} />
+          </g>
+        );
+      })}
+
+      {completed > 0 && (() => {
+        const i = completed - 1;
+        const t = (i + 0.5) / total;
+        const y = 210 - t * 126;
+        const roadHalfW = (1 - t) * 42 + 8;
+        const side = i % 2 === 0 ? -1 : 1;
+        const x = 200 + side * roadHalfW * 0.52;
+        const scale = Math.max(0.38, 1 - t * 0.62);
+        const h = 14 * scale;
+        const hw = 4.5 * scale;
+        return (
+          <g>
+            <circle cx={x} cy={y - h * 0.88} r={hw * 0.62} fill="white" opacity="0.92" />
+            <rect x={x - hw * 0.32} y={y - h * 0.68} width={hw * 0.64} height={h * 0.66} rx="1" fill="white" opacity="0.88" />
+          </g>
+        );
+      })()}
+    </svg>
+  );
+}
+
+const CHAPTER_CHECKS = {
+  intro:         ["J'ai compris le but de cette formation", "J'ai pris conscience du blocage intérieur", "J'ai mon cahier prêt pour les exercices"],
+  islam:         ["J'ai lu et médité les fondements islamiques", "J'ai compris le lien entre Tawhid et identité", "J'ai noté une action concrète à intégrer"],
+  environnement: ["J'ai identifié les influences toxiques dans mon environnement", "J'ai listé les personnes qui m'élèvent et celles qui me tirent vers le bas", "J'ai décidé d'un premier ajustement concret"],
+  comportements: ["J'ai compris l'origine de mes comportements problématiques", "J'ai identifié les déclencheurs de mes mauvaises habitudes", "J'ai noté les patterns qui se répètent dans ma vie"],
+  reparation:    ["J'ai appliqué le protocole de réparation comportementale", "J'ai identifié le comportement prioritaire à travailler", "J'ai défini un plan d'action concret pour cette semaine"],
+  neurosciences: ["J'ai compris comment mon cerveau construit mon identité", "J'ai pris conscience de mes croyances limitantes", "J'ai commencé à reformuler mon identité islamique"],
+  monde:         ["J'ai analysé comment mon environnement m'a façonné", "J'ai fait la part entre ce que je suis vraiment et ce qu'on m'a inculqué", "J'ai identifié ce que je veux garder et ce que je veux transformer"],
+  productivite:  ["J'ai défini mon projet de vie avec les 3 piliers", "J'ai établi mes rituels quotidiens (matin & soir)", "J'ai planifié mes objectifs sur 30/60/90 jours"],
+  rechute:       ["J'ai compris que la rechute fait partie du chemin", "J'ai appris le protocole islamique de retour", "J'ai préparé mon plan de résilience personnel"],
+  programme:     ["J'ai lu et validé le programme des 90 jours", "J'ai choisi ma date de départ et signé mon engagement", "J'ai configuré mon suivi dans le dashboard"],
+};
+
+function ChapterCompletion({ chapterId, chapterTitle }) {
+  const CONTENT_CHAPTERS = [
+    "intro","islam","environnement","comportements",
+    "reparation","neurosciences","monde","productivite","rechute","programme"
+  ];
+  const TOTAL = CONTENT_CHAPTERS.length;
+
+  const [done, setDone] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("chapter_progress") || "[]");
+      return Array.isArray(saved) ? saved : [];
+    } catch { return []; }
+  });
+  const [showModal, setShowModal] = useState(false);
+
+  // Local checkboxes state
+  const checks = CHAPTER_CHECKS[chapterId] || [];
+  const storageKey = `chap_checks_${chapterId}`;
+  const [checkedItems, setCheckedItems] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(storageKey) || "[]"); }
+    catch { return []; }
+  });
+
+  const toggleCheckItem = (idx) => {
+    setCheckedItems(prev => {
+      const next = prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx];
+      localStorage.setItem(storageKey, JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const allChecked = checks.length === 0 || checkedItems.length >= checks.length;
+
+  const isCompleted = done.includes(chapterId);
+  const completedCount = done.filter(id => CONTENT_CHAPTERS.includes(id)).length;
+
+  const handleComplete = () => {
+    if (isCompleted || !allChecked) return;
+    const next = [...done, chapterId];
+    setDone(next);
+    localStorage.setItem("chapter_progress", JSON.stringify(next));
+    window.dispatchEvent(new Event("chapterCompleted"));
+    setShowModal(true);
+  };
+
+  const getMessage = (count) => {
+    if (count <= 3) return "Tu poses les premières pierres de ton chemin. Chaque pas que tu fais compte devant Allah.";
+    if (count <= 7) return "Tu es en route. La lumière grandit à l'horizon. Continue — la constance vaut plus que l'intensité.";
+    if (count < TOTAL) return "Tu approches du sommet. Allah voit ton effort. « Innallaha la yudîy'u ajra al-muhsinîn. »";
+    return "Tu as parcouru tout le chemin. Que Allah scelle cette transformation et la rende durable.";
+  };
+
+  const getArabic = (count) => {
+    if (count < TOTAL) return "وَٱللَّهُ يُحِبُّ ٱلصَّٰبِرِينَ";
+    return "إِنَّ اللَّهَ لَا يُضِيعُ أَجْرَ الْمُحْسِنِينَ";
+  };
+
+  // Generate particles once per mount
+  const particles = useRef(null);
+  if (!particles.current) {
+    const PARTICLE_COUNT = 56;
+    particles.current = Array.from({ length: PARTICLE_COUNT }, (_, i) => {
+      const angle = (i / PARTICLE_COUNT) * 360;
+      const isDiamond = i % 4 === 0;
+      const isLine = i % 7 === 0;
+      const colors = ['#C4A35A','#C4A35A','#2A5C50','rgba(255,255,255,0.8)','#E8D5A0','#2A5C50'];
+      const color = colors[i % colors.length];
+      const dist = 120 + Math.random() * 220;
+      const size = isLine ? `${1 + Math.random() * 1.5}px` : `${3 + Math.random() * 6}px`;
+      const height = isLine ? `${8 + Math.random() * 16}px` : size;
+      const dur = `${0.55 + Math.random() * 0.6}s`;
+      const delay = `${Math.random() * 0.25}s`;
+      return { angle, dist, color, size, height, dur, delay, isDiamond };
+    });
+  }
+
+  return (
+    <>
+      <div className="chapter-completion">
+        {isCompleted ? (
+          <div className="chapter-completion-done">
+            <svg width="16" height="12" viewBox="0 0 16 12" fill="none">
+              <path d="M1.5 6L5.5 10.5L14.5 1.5" stroke={COLORS.gold} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <span>Chapitre complété</span>
+          </div>
+        ) : (
+          <>
+            {checks.length > 0 && (
+              <div style={{ marginBottom: "1.5rem", textAlign: "left" }}>
+                <p style={{ fontSize: "0.78rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: COLORS.tealLight, marginBottom: "0.8rem" }}>
+                  Valide ces points avant de continuer
+                </p>
+                {checks.map((text, idx) => {
+                  const isChecked = checkedItems.includes(idx);
+                  return (
+                    <div key={idx} onClick={() => toggleCheckItem(idx)} style={{
+                      display: "flex", alignItems: "flex-start", gap: "0.75rem",
+                      padding: "0.6rem 0.9rem", marginBottom: "0.4rem",
+                      background: isChecked ? `rgba(27,107,95,0.06)` : COLORS.white,
+                      border: `1px solid ${isChecked ? "rgba(27,107,95,0.2)" : "rgba(0,0,0,0.07)"}`,
+                      borderRadius: 10, cursor: "pointer", transition: "all 0.18s",
+                      userSelect: "none"
+                    }}>
+                      <div style={{
+                        width: 20, height: 20, minWidth: 20, borderRadius: 6,
+                        border: `2px solid ${isChecked ? COLORS.teal : "rgba(0,0,0,0.15)"}`,
+                        background: isChecked ? COLORS.teal : "transparent",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        transition: "all 0.18s", marginTop: 1
+                      }}>
+                        {isChecked && <svg width="11" height="9" viewBox="0 0 11 9" fill="none"><path d="M1 4.5L3.8 7.5L10 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                      </div>
+                      <span style={{ fontSize: "0.9rem", color: isChecked ? COLORS.gray : COLORS.darkSoft, textDecoration: isChecked ? "line-through" : "none", lineHeight: 1.5 }}>{text}</span>
+                    </div>
+                  );
+                })}
+                {!allChecked && (
+                  <p style={{ fontSize: "0.78rem", color: COLORS.grayLight, marginTop: "0.6rem", fontStyle: "italic" }}>
+                    Coche toutes les cases pour débloquer la validation.
+                  </p>
+                )}
+              </div>
+            )}
+            <button
+              className="chapter-complete-btn"
+              onClick={handleComplete}
+              disabled={!allChecked}
+              style={{ opacity: allChecked ? 1 : 0.4, cursor: allChecked ? "pointer" : "not-allowed", transition: "opacity 0.3s" }}
+            >
+              J'ai pris connaissance de ce chapitre
+            </button>
+          </>
+        )}
+      </div>
+
+      {showModal && (
+        <div className="wow-screen">
+
+          {/* Islamic geometry background */}
+          <div className="wow-geo-bg">
+            <svg width="700" height="700" viewBox="0 0 700 700" fill="none" opacity="0.04">
+              <circle cx="350" cy="350" r="320" stroke="#C4A35A" strokeWidth="1"/>
+              <circle cx="350" cy="350" r="260" stroke="#C4A35A" strokeWidth="0.6"/>
+              <circle cx="350" cy="350" r="200" stroke="#C4A35A" strokeWidth="0.5"/>
+              <circle cx="350" cy="350" r="140" stroke="#C4A35A" strokeWidth="0.4"/>
+              {[0,30,60,90,120,150,180,210,240,270,300,330].map(a => {
+                const r1 = 140, r2 = 320;
+                const x1 = 350 + r1 * Math.cos(a * Math.PI / 180);
+                const y1 = 350 + r1 * Math.sin(a * Math.PI / 180);
+                const x2 = 350 + r2 * Math.cos(a * Math.PI / 180);
+                const y2 = 350 + r2 * Math.sin(a * Math.PI / 180);
+                return <line key={a} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#C4A35A" strokeWidth="0.5"/>;
+              })}
+              {[0,45,90,135].map(a => {
+                const pts = [0,72,144,216,288].map(d => {
+                  const x = 350 + 220 * Math.cos((a + d) * Math.PI / 180);
+                  const y = 350 + 220 * Math.sin((a + d) * Math.PI / 180);
+                  return `${x},${y}`;
+                }).join(' ');
+                return <polygon key={a} points={pts} stroke="#C4A35A" strokeWidth="0.4" fill="none"/>;
+              })}
+            </svg>
+          </div>
+
+          {/* Particles burst */}
+          <div className="wow-particles">
+            {particles.current.map((p, i) => (
+              <div
+                key={i}
+                className={p.isDiamond ? "wow-p wow-p-diamond" : "wow-p"}
+                style={{
+                  width: p.size,
+                  height: p.height,
+                  background: p.color,
+                  "--angle": `${p.angle}deg`,
+                  "--dist": `${p.dist}px`,
+                  "--dur": p.dur,
+                  "--delay": p.delay,
+                }}
+              />
+            ))}
+          </div>
+
+          {/* Main card */}
+          <div className="wow-card">
+            {/* Ring + checkmark */}
+            <div className="wow-ring-wrap">
+              <div className="wow-ring-pulse" />
+              <div className="wow-ring-outer" />
+              <div className="wow-ring-inner" />
+              <div className="wow-check-circle">
+                <svg className="wow-check-svg" viewBox="0 0 48 48" fill="none">
+                  <path
+                    className="wow-check-path"
+                    d="M10 24L20 34L38 14"
+                    stroke="#C4A35A"
+                    strokeWidth="3.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </div>
+            </div>
+
+            {/* Title */}
+            <div className="wow-title">Bien <span>joué</span></div>
+
+            {/* Chapter label */}
+            <div className="wow-chapter-label">{chapterTitle}</div>
+
+            {/* Progress dots */}
+            <div className="wow-progress-track">
+              {Array.from({ length: TOTAL }, (_, i) => {
+                const litCount = completedCount;
+                if (i < litCount - 1) return <div key={i} className="wow-progress-dot lit" />;
+                if (i === litCount - 1) return <div key={i} className="wow-progress-dot current" />;
+                return <div key={i} className="wow-progress-dot" />;
+              })}
+            </div>
+
+            {/* Message */}
+            <div className="wow-message">{getMessage(completedCount)}</div>
+
+            {/* CTA */}
+            <button className="wow-btn" onClick={() => setShowModal(false)}>
+              Continuer
+              <span className="wow-btn-arrow">→</span>
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function FlipCard({ front, back }) {
+  const [flipped, setFlipped] = useState(false);
+  return (
+    <div className={`flip-card${flipped ? " is-flipped" : ""}`} onClick={() => setFlipped(f => !f)}>
+      <div className="flip-card-front">{front}</div>
+      <div className="flip-card-back">{back}</div>
+    </div>
+  );
+}
+
+function QuestionPager({ questions, renderItem }) {
+  const [current, setCurrent] = useState(0);
+  const total = questions.length;
+
+  return (
+    <div className="question-pager">
+      <div className="question-pager-header">
+        <span className="question-pager-count">{current + 1} / {total}</span>
+      </div>
+      <div className="question-pager-bar-track">
+        <div className="question-pager-bar-fill" style={{ width: `${((current + 1) / total) * 100}%` }} />
+      </div>
+      <div className="question-pager-content fade-in" key={current}>
+        {renderItem
+          ? renderItem(questions[current], current)
+          : <div className="question-box" style={{ margin: 0 }}>→ {questions[current]}</div>
+        }
+      </div>
+      <div className="question-pager-nav">
+        <button
+          className="question-pager-btn"
+          onClick={() => setCurrent(c => Math.max(0, c - 1))}
+          disabled={current === 0}
+        >
+          Précédent
+        </button>
+        <button
+          className="question-pager-btn primary"
+          onClick={() => setCurrent(c => Math.min(total - 1, c + 1))}
+          disabled={current === total - 1}
+        >
+          Suivant
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function StudyBox({ children }) {
+  return (
+    <FlipCard
+      front={
+        <div className="study-box">
+          <div className="study-label">ÉTUDE SCIENTIFIQUE</div>
+          <div className="flip-hint">Cliquer pour révéler le contenu</div>
+        </div>
+      }
+      back={
+        <div className="study-box">
+          <div className="study-label">ÉTUDE SCIENTIFIQUE</div>
+          <div>{children}</div>
+        </div>
+      }
+    />
+  );
+}
+
+function ExerciseTimer() {
+  const [running, setRunning] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  const [preset, setPreset] = useState(null);
+  const intervalRef = useRef(null);
+
+  useEffect(() => {
+    if (running) {
+      intervalRef.current = setInterval(() => {
+        setElapsed(e => {
+          if (preset && e + 1 >= preset) {
+            setRunning(false);
+            clearInterval(intervalRef.current);
+            return preset;
+          }
+          return e + 1;
+        });
+      }, 1000);
+    } else {
+      clearInterval(intervalRef.current);
+    }
+    return () => clearInterval(intervalRef.current);
+  }, [running, preset]);
+
+  const fmt = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
+  const isDone = preset !== null && elapsed >= preset;
+  const display = preset !== null ? fmt(Math.max(0, preset - elapsed)) : fmt(elapsed);
+
+  return (
+    <div className="exercise-timer">
+      <span className="timer-display" style={{ color: isDone ? COLORS.gold : COLORS.teal }}>
+        {display}
+      </span>
+      <div style={{ display: "flex", gap: "0.4rem" }}>
+        {[5, 10, 15].map(min => (
+          <button key={min}
+            className={`timer-btn${preset === min * 60 ? " active" : ""}`}
+            onClick={() => { setPreset(min * 60); setElapsed(0); setRunning(false); }}
+          >{min} min</button>
+        ))}
+      </div>
+      {!isDone ? (
+        <button className={`timer-btn${running ? " active" : ""}`}
+          onClick={() => setRunning(r => !r)}>
+          {running ? "Pause" : elapsed > 0 ? "Reprendre" : "Démarrer"}
+        </button>
+      ) : (
+        <span style={{ fontSize: "0.82rem", color: COLORS.gold, fontWeight: 600 }}>Terminé</span>
+      )}
+      {elapsed > 0 && !running && (
+        <button className="timer-btn" onClick={() => { setElapsed(0); setRunning(false); }}
+          style={{ opacity: 0.6 }}>Reset</button>
+      )}
+    </div>
+  );
+}
+
+function ActionBox({ title, children }) {
+  const label = title || "ACTION CONCRÈTE";
+  return (
+    <FlipCard
+      front={
+        <div className="action-box">
+          <div className="action-label">{label}</div>
+          <div className="flip-hint">Cliquer pour révéler l'exercice</div>
+        </div>
+      }
+      back={
+        <div className="action-box">
+          <div className="action-label">{label}</div>
+          <div>{children}</div>
+          <ExerciseTimer />
+        </div>
+      }
+    />
+  );
+}
+
+function QuestionBox({ children }) {
+  return <div className="question-box">→ {children}</div>;
+}
+
+function Step({ num, children }) {
+  return (
+    <div className="protocol-step">
+      <div className="step-num">{num}</div>
+      <div style={{ flex: 1 }}>{children}</div>
+    </div>
+  );
+}
+
+function Card({ title, emoji, children }) {
+  return (
+    <div className="card">
+      {title && <div className="card-title">{title}</div>}
+      <div style={{ fontSize: "0.95rem", color: COLORS.gray, lineHeight: 1.7 }}>{children}</div>
+    </div>
+  );
+}
+
+function Divider() {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: "1rem",
+      margin: "3rem 0", opacity: 0.25
+    }}>
+      <div style={{ flex: 1, height: 1, background: COLORS.teal }} />
+      <div style={{
+        width: 6, height: 6, borderRadius: "50%",
+        background: COLORS.gold, flexShrink: 0
+      }} />
+      <div style={{ flex: 1, height: 1, background: COLORS.teal }} />
+    </div>
+  );
+}
+
+// ────── SIDEBAR PROGRESS BAR ──────
+function SidebarProgressBar() {
+  const CONTENT_CHAPTERS = ["intro","islam","environnement","comportements",
+    "reparation","neurosciences","monde","productivite","rechute","programme"];
+  const completed = useChapterProgress();
+  const count = completed.filter(id => CONTENT_CHAPTERS.includes(id)).length;
+  const pct = Math.round((count / CONTENT_CHAPTERS.length) * 100);
+
+  return (
+    <div className="sidebar-progress-wrap">
+      <div className="sidebar-progress-meta">
+        <span>Progression</span>
+        <span style={{ color: count > 0 ? COLORS.teal : COLORS.grayLight }}>
+          {count} / {CONTENT_CHAPTERS.length}
+        </span>
+      </div>
+      <div className="sidebar-progress-track">
+        <div className="sidebar-progress-fill" style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+// ────── CHAPTER NOTES ──────
+function ChapterNotes({ chapterId }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState(() =>
+    localStorage.getItem(`notes_${chapterId}`) || ""
+  );
+  const [saved, setSaved] = useState(true);
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    setText(localStorage.getItem(`notes_${chapterId}`) || "");
+    setSaved(true);
+    setOpen(false);
+  }, [chapterId]);
+
+  const handleChange = (e) => {
+    const val = e.target.value;
+    setText(val);
+    setSaved(false);
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      localStorage.setItem(`notes_${chapterId}`, val);
+      setSaved(true);
+    }, 900);
+  };
+
+  const chapterTitle = CHAPTERS.find(c => c.id === chapterId)?.title || "";
+
+  return (
+    <div className="notes-box">
+      <div className="notes-box-header" onClick={() => setOpen(o => !o)}>
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <rect x="1" y="1" width="12" height="12" rx="2" stroke={COLORS.teal} strokeWidth="1.3"/>
+          <path d="M4 5h6M4 7.5h4" stroke={COLORS.teal} strokeWidth="1.3" strokeLinecap="round"/>
+        </svg>
+        <span className="notes-box-label">Mes notes — {chapterTitle}</span>
+        <svg width="10" height="7" viewBox="0 0 10 7" fill="none"
+          style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.3s" }}>
+          <path d="M1 1.5L5 5.5L9 1.5" stroke={COLORS.gray} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </div>
+      {open && (
+        <>
+          <textarea
+            placeholder="Tes réflexions, prises de conscience, résolutions pour ce chapitre..."
+            value={text}
+            onChange={handleChange}
+          />
+          <div className="notes-save-status">
+            {saved ? "Sauvegardé" : "Sauvegarde..."}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ────── ONBOARDING ──────
+const ONBOARDING_Q = [
+  {
+    q: "Où en es-tu ?",
+    opts: [
+      { label: "Perdu. Je ne sais plus où j'en suis", rec: "intro" },
+      { label: "Recommencer. Repartir sur de bonnes bases", rec: "islam" },
+      { label: "Stagner. Je sais quoi faire — rien ne change", rec: "comportements" },
+      { label: "Progresser. Aller plus loin dans la transformation", rec: "neurosciences" },
+    ],
+  },
+  {
+    q: "Ton plus grand obstacle ?",
+    opts: [
+      { label: "Des comportements négatifs qui reviennent", rec: "reparation" },
+      { label: "Un environnement qui me tire vers le bas", rec: "environnement" },
+      { label: "Une foi qui vacille", rec: "islam" },
+      { label: "L'absence de direction et de discipline", rec: "productivite" },
+    ],
+  },
+  {
+    q: "Par où commencer ?",
+    opts: [
+      { label: "Me comprendre moi-même", rec: "comportements" },
+      { label: "Renforcer ma pratique spirituelle", rec: "islam" },
+      { label: "Construire des habitudes solides", rec: "programme" },
+      { label: "Comprendre ce qui m'a fabriqué", rec: "monde" },
+    ],
+  },
+];
+
+function Onboarding({ onComplete }) {
+  const [step, setStep] = useState(0);
+  const [recs, setRecs] = useState([]);
+  const total = ONBOARDING_Q.length;
+  const current = ONBOARDING_Q[step];
+
+  const handleSelect = (rec) => {
+    const next = [...recs, rec];
+    if (step < total - 1) {
+      setRecs(next);
+      setStep(s => s + 1);
+    } else {
+      const freq = {};
+      next.forEach(r => { freq[r] = (freq[r] || 0) + 1; });
+      const best = Object.entries(freq).sort((a, b) => b[1] - a[1])[0][0];
+      onComplete(best);
+    }
+  };
+
+  return (
+    <div className="onboarding-overlay">
+      <div className="onboarding-card fade-in-up">
+        <div style={{ marginBottom: "2rem" }}>
+          <span style={{ fontSize: "1.6rem", fontFamily: "'Amiri', serif", color: COLORS.gold }}>﷽</span>
+        </div>
+        <div className="onboarding-prog-track">
+          <div className="onboarding-prog-fill" style={{ width: `${(step / total) * 100}%` }} />
+        </div>
+        <div className="onboarding-step-lbl">{step + 1} / {total}</div>
+        <div className="onboarding-question">{current.q}</div>
+        <div>
+          {current.opts.map((opt, i) => (
+            <button key={i} className="onboarding-option" onClick={() => handleSelect(opt.rec)}>
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={() => onComplete("home")}
+          style={{
+            marginTop: "1.8rem", background: "none", border: "none",
+            color: "rgba(255,255,255,0.25)", fontSize: "0.75rem",
+            cursor: "pointer", fontFamily: "'Source Sans 3', sans-serif",
+          }}
+        >
+          Passer — commencer par l'accueil
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ChapterHeader({ number, title, verse, verseRef }) {
+  return (
+    <div className="chapter-header-hero">
+      {number !== undefined ? (
+        <div className="hero-eyebrow">Partie {number}</div>
+      ) : (
+        <div className="hero-eyebrow">Formation</div>
+      )}
+      <h2>{title}</h2>
+      {verse && (
+        <>
+          <div className="hero-sep" />
+          <div className="hero-verse">
+            « {verse} »
+          </div>
+          {verseRef && <div className="hero-verse-ref">{verseRef}</div>}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ────── HERO / HOME ──────
+function HomeSection() {
+  return (
+    <div className="fade-in-up" style={{ textAlign: "center", padding: "2rem 0" }}>
+      <div style={{
+        width: 120, height: 120, margin: "0 auto 1.5rem",
+        borderRadius: "50%", background: `linear-gradient(135deg, ${COLORS.teal}, ${COLORS.tealLight})`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        boxShadow: `0 8px 32px rgba(27,107,95,0.2)`,
+        border: `3px solid ${COLORS.gold}`
+      }}>
+        <span style={{ fontSize: "1.6rem", fontFamily: "'Amiri', serif", color: COLORS.gold }}>﷽</span>
+      </div>
+
+      <div style={{
+        fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase",
+        letterSpacing: "0.25em", color: COLORS.gold, marginBottom: "0.8rem"
+      }}>
+        JADIS · Formation Premium
+      </div>
+
+      <h1 className="heading-display" style={{
+        fontSize: "2.8rem", lineHeight: 1.15, marginBottom: "0.5rem",
+        background: `linear-gradient(135deg, ${COLORS.dark}, ${COLORS.teal})`,
+        WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent"
+      }}>
+        Le Retour du Croyant
+      </h1>
+
+      <p style={{
+        fontSize: "1.15rem", color: COLORS.gray, maxWidth: 500,
+        margin: "1rem auto 2rem", lineHeight: 1.6
+      }}>
+        La transformation complète du musulman moderne.<br />
+        Corps · Âme · Mindset · Objectifs
+      </p>
+
+      <VersetBox
+        arabic="وَمَن يَتَّقِ ٱللَّهَ يَجۡعَل لَّهُۥ مَخۡرَجٗا ۝ وَيَرۡزُقۡهُ مِنۡ حَيۡثُ لَا يَحۡتَسِبُۚ وَمَن يَتَوَكَّلۡ عَلَى ٱللَّهِ فَهُوَ حَسۡبُهُۥٓ"
+        french="Quiconque craint Allah — Il lui ouvre une issue, et le nourrit d'où il ne s'y attend pas. Quiconque place sa confiance en Allah, Il lui suffit."
+        sourate="Sourate At-Talaq (65)"
+        numero="Versets 2-3"
+      />
+
+      <div style={{
+        margin: "3rem auto", maxWidth: 550, textAlign: "left",
+        padding: "2rem", background: COLORS.white, borderRadius: 16,
+        border: `1px solid rgba(27,107,95,0.1)`,
+        boxShadow: "0 4px 24px rgba(0,0,0,0.04)"
+      }}>
+        <p style={{ fontSize: "1.05rem", lineHeight: 1.8, color: COLORS.darkSoft }}>
+          Tu es déprimé. Tu ne pries plus régulièrement. Ton corps est à l'abandon.
+          Tu n'as pas de direction.
+        </p>
+        <p style={{ fontSize: "1.1rem", lineHeight: 1.8, color: COLORS.teal, fontWeight: 600, marginTop: "1rem" }}>
+          Ce guide a été écrit pour toi.
+        </p>
+      </div>
+
+      <div style={{
+        display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+        gap: "1rem", maxWidth: 700, margin: "2rem auto"
+      }}>
+        {[
+          { icon: "I", text: "8 piliers de transformation" },
+          { icon: "II", text: "Neurosciences & psychologie" },
+          { icon: "III", text: "Questionnaire d'auto-évaluation" },
+          { icon: "IV", text: "Programme de 90 jours" },
+        ].map((item, i) => (
+          <div key={i} style={{
+            padding: "1.2rem", background: COLORS.white, borderRadius: 12,
+            border: `1px solid rgba(27,107,95,0.08)`, textAlign: "center"
+          }}>
+            <div style={{ fontSize: "1.5rem", marginBottom: "0.4rem" }}>{item.icon}</div>
+            <div style={{ fontSize: "0.9rem", fontWeight: 600, color: COLORS.dark }}>{item.text}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{
+        margin: "3rem auto 0", padding: "1.5rem 2rem", maxWidth: 600,
+        background: `linear-gradient(135deg, rgba(196,163,90,0.08), rgba(196,163,90,0.03))`,
+        border: `1px solid rgba(196,163,90,0.2)`, borderRadius: 14
+      }}>
+        <p style={{ fontSize: "0.9rem", color: COLORS.gray, lineHeight: 1.7 }}>
+          <strong style={{ color: COLORS.dark }}>Avant de commencer.</strong> Cette formation ne remplace pas un suivi psychologique,
+          médical, ni un accompagnement spirituel qualifié. Si tu traverses une crise, consulte un professionnel.
+          Tu n'as pas à être parfait pour commencer. Tu dois juste commencer.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ────── INTRODUCTION ──────
+function IntroSection() {
+  return (
+    <div className="section-content fade-in">
+      <ChapterHeader title="Introduction" verse="Inna ma'al 'usri yusra — Avec la difficulté vient la facilité" verseRef="Coran 94:6" />
+
+      <h3>Ce que cette formation est — et ce qu'elle n'est pas</h3>
+      <p>Cette formation n'a pas été écrite par un imam. Pas par un psychologue. Pas par un neuroscientifique. Elle a été écrite par quelqu'un qui a traversé ce dont elle parle — la foi qui vacille, l'environnement qui détruit, les comportements qu'on ne comprend pas, les relations qui échouent.</p>
+      <p>Ce que vous allez lire s'appuie sur des travaux islamiques, des recherches en psychologie, en neurosciences et en philosophie. Ces références sont citées honnêtement. Mais elles ne font pas de cette formation un traitement médical ni une fatwa. Ce sont des outils. À vous de les utiliser avec discernement.</p>
+
+      <Divider />
+
+      <h3>Pourquoi cette formation existe</h3>
+      <p>La plupart des formations religieuses vous apprennent <strong>ce qu'il faut faire</strong>. La plupart des formations de développement personnel vous apprennent <strong>comment le faire</strong>. Aucune des deux ne vous dit vraiment <strong>pourquoi vous n'arrivez pas à le faire</strong> — alors que vous savez déjà ce que vous devriez faire.</p>
+      <p>C'est le vrai problème. Pas l'ignorance. <strong>Le blocage.</strong></p>
+      <p>Vous savez que vous devriez prier. Vous savez que vous devriez manger mieux, dormir plus tôt, faire du sport. Vous savez tout ça. Et pourtant quelque chose résiste. Cette formation existe pour aller chercher ce quelque chose.</p>
+
+      <StudyBox>
+        <p style={{margin:0}}>Les vérités que la psychologie et les neurosciences documentent depuis un siècle trouvent un écho remarquable dans les travaux des savants musulmans — Al-Ghazali décrivait le fonctionnement de l'inconscient au XIème siècle, Ibn al-Qayyim théorisait les mécanismes de la récompense bien avant la neurologie moderne, Al-Muhāsibī pratiquait l'examen de conscience structuré au IXème siècle. Cette formation réunit les deux : la rigueur scientifique et la boussole spirituelle.</p>
+      </StudyBox>
+
+      <Divider />
+
+      <h3>Ce que cette formation fait — et ne promet pas</h3>
+      <div className="grid-2">
+        <Card title="Ce qu'elle fait">
+          Elle te donne un cadre islamique ancré dans des hadiths authentiques et des outils de coaching éprouvés. Elle t'aide à comprendre pourquoi tu n'arrives pas à changer, pas juste quoi changer.
+        </Card>
+        <Card title="Ce qu'elle ne fait pas">
+          Elle ne remplace pas Allah. Elle ne te promet pas de résultats sans effort. Elle ne fonctionne pas si tu la lis et que tu ranges le PDF. Le chemin, c'est toi qui le parcours.
+        </Card>
+      </div>
+
+      <ActionBox title="Ce dont tu as besoin">
+        <p style={{margin:0}}>Honnêteté avec toi-même. Un cahier pour les exercices. La volonté de recommencer après chaque rechute. Et la conviction qu'Allah t'a créé pour mieux que ce que tu vis aujourd'hui.</p>
+      </ActionBox>
+
+      <h3>Comment lire cette formation</h3>
+      <p>Cette formation se lit dans l'ordre. Chaque partie s'appuie sur la précédente. Ne lisez pas d'une traite. Prenez le temps de chaque partie. Faites les exercices vraiment. Ce que vous n'écrivez pas, vous ne le traitez pas.</p>
+      <p>Et revenez. Cette formation n'est pas un livre qu'on lit une fois. C'est un cadre qu'on habite sur la durée.</p>
+
+      <blockquote>Bismillah — commençons.</blockquote>
+
+      <KeyTakeaway items={[
+        "Cette formation unit la rigueur islamique (Al-Ghazali, Ibn al-Qayyim, Al-Muhāsibī) avec les apports des neurosciences et de la psychologie moderne.",
+        "Le problème n'est pas l'ignorance — tu sais déjà quoi faire. Le problème est le blocage intérieur.",
+        "Lis dans l'ordre. Fais les exercices sur papier. Ce que tu n'écris pas, tu ne le traites pas.",
+        "Cette formation ne remplace pas Allah. Elle te donne des outils. Le chemin, c'est toi qui le parcours."
+      ]} />
+
+      <ChapterCompletion chapterId="intro" chapterTitle="Introduction" />
+    </div>
+  );
+}
+
+// ────── PROCESSUS MIROIR ──────
+function MiroirSection() {
+  const mirrorQuestions = [
+    "Quelles sont les trois actions que cette personne répète le plus souvent et qui détruisent son quotidien ?",
+    "Quelles sont les trois choses que cette personne évite de faire, qu'elle sait qu'elle devrait faire ?",
+    "Où va l'attention de cette personne quand elle n'est pas sur ce qui compte vraiment ?",
+    "Quel potentiel cette personne est-elle en train de gaspiller par confort ou par peur ?",
+    "Si cette personne vivait dans un film, qu'est-ce que l'audience crierait devant l'écran ?",
+  ];
+  const projectionQuestions = [
+    "Le physique — Comment sera votre corps ? Votre énergie au quotidien ?",
+    "Le mental — Quelle image aurez-vous de vous-même ?",
+    "Les relations — Quelle sera la qualité de vos relations proches ?",
+    "La foi — Où en serez-vous dans votre relation avec Allah ?",
+    "Les projets — Qu'aurez-vous construit ou accompli ?",
+    "Le sens — Vivrez-vous en accord avec vos valeurs profondes ?",
+  ];
+
+  return (
+    <div className="section-content fade-in">
+      <ChapterHeader title="Le Processus Miroir" verse="Examinez-vous avant d'être examinés" verseRef="Omar ibn al-Khattab" />
+
+      <p>Avant de lire la suite, il y a une étape <strong>obligatoire</strong>. Pas optionnelle. Parce que cette formation ne peut pas vous aider si vous ne savez pas honnêtement où vous en êtes. La vraie version. Pas celle que vous montrez aux autres.</p>
+
+      <p>Ce qu'on appelle le Processus Miroir, c'est ceci : <strong>se regarder sans filtre</strong>. Se voir tel qu'on est — pas tel qu'on voudrait être. C'est inconfortable. Mais sans cette étape, vous lisez une formation sur la transformation en restant exactement la même personne qui évite de se transformer.</p>
+
+      <ActionBox title="L'exercice — à faire maintenant">
+        <p>Prenez une feuille. Pas votre téléphone — <strong>une feuille</strong>. Écrivez à la main. Imaginez que vous êtes un consultant externe engagé pour analyser la vie de quelqu'un. Vous avez accès à tout. Maintenant imaginez que cette personne, c'est vous.</p>
+      </ActionBox>
+
+      <h3>Les 5 questions du miroir</h3>
+      <QuestionPager questions={mirrorQuestions} />
+
+      <Divider />
+
+      <h3>La Projection — dans 3 ans si rien ne change</h3>
+      <p>Pas dans 3 ans si vous changez tout. Dans 3 ans si vous continuez <strong>exactement</strong> comme aujourd'hui. Mêmes habitudes. Même gestion de votre attention. Mêmes tolérances.</p>
+      <QuestionPager questions={projectionQuestions} />
+
+      <div style={{
+        margin: "2rem 0", padding: "1.5rem", background: `linear-gradient(135deg, ${COLORS.teal}, ${COLORS.tealLight})`,
+        borderRadius: 14, color: COLORS.white, textAlign: "center"
+      }}>
+        <p style={{ color: COLORS.white, fontWeight: 600, margin: 0, fontSize: "1.05rem" }}>
+          Si ce que vous lisez vous dérange — c'est bien. Ce malaise est votre carburant. Ne l'éteignez pas. Transformez-le.
+        </p>
+      </div>
+
+      <ChecklistBox
+        title="Checklist — Avant de passer à la suite"
+        items={[
+          "J'ai répondu aux 5 questions du miroir sur papier, honnêtement",
+          "J'ai fait la projection dans 3 ans pour chacun des 6 domaines",
+          "J'ai relu ce que j'ai écrit sans me protéger",
+          "Je garde cette feuille — c'est mon point de départ",
+        ]}
+      />
+
+      <ChapterCompletion chapterId="miroir" chapterTitle="Le Processus Miroir" />
+    </div>
+  );
+}
+
+// ────── PARTIE 1 — L'ISLAM ──────
+function IslamSection() {
+  const [openSub, setOpenSub] = useState("tawhid");
+  const subs = [
+    { id: "tawhid", title: "1. Le Tawhid — Ta fondation absolue", content: <TawhidContent /> },
+    { id: "piliers", title: "2. Les Piliers", content: <PiliersContent /> },
+    { id: "priere", title: "3. La Prière — Ton lien direct", content: <PriereContent /> },
+    { id: "intention", title: "4. L'Intention — Niyya", content: <IntentionContent /> },
+    { id: "adorations", title: "5. Les Adorations", content: <AdorationsContent /> },
+    { id: "doua", title: "6. La Du'â — Ligne directe avec Allah", content: <DouaContent /> },
+    { id: "jeune", title: "7. Le Jeûne — Transformation totale", content: <JeuneContent /> },
+    { id: "mariage", title: "8. Le Mariage", content: <MariageContent /> },
+    { id: "corps", title: "9. L'Adoration dans le corps", content: <CorpsContent /> },
+  ];
+  return (
+    <div className="section-content fade-in">
+      <ChapterHeader number="1" title="L'Islam" verse="C'est par le rappel d'Allah que les cœurs trouvent leur repos" verseRef="Coran 13:28" />
+      <VersetBox
+        arabic="ٱلَّذِينَ ءَامَنُواْ وَتَطۡمَئِنُّ قُلُوبُهُم بِذِكۡرِ ٱللَّهِۗ أَلَا بِذِكۡرِ ٱللَّهِ تَطۡمَئِنُّ ٱلۡقُلُوبُ"
+        french="Ceux qui croient et dont les cœurs trouvent leur quiétude dans le rappel d'Allah. N'est-ce pas par le rappel d'Allah que les cœurs trouvent leur quiétude ?"
+        sourate="Sourate Ar-Ra'd (13)"
+        numero="Verset 28"
+      />
+      <p>Avant tout glow up, une vérité : si ton Tawhid est fragile, tes actes n'ont pas de racine. L'islam n'est pas une liste d'obligations. C'est une façon d'habiter chaque instant avec Allah.</p>
+      {subs.map(sub => (
+        <SubSection key={sub.id} title={sub.title} open={openSub === sub.id} onToggle={() => setOpenSub(openSub === sub.id ? null : sub.id)}>
+          {sub.content}
+        </SubSection>
+      ))}
+      <KeyTakeaway items={[
+        "Le Tawhid est la racine — sans lui, aucune transformation ne tient. La certitude (yaqîn) prime sur la motivation.",
+        "La prière est un dialogue direct avec Allah, pas une obligation pesante. Le khushû' se construit par la compréhension de ce qu'on récite.",
+        "L'intention (niyya) transforme chaque acte ordinaire en adoration. C'est le premier hadith de Bukhari — rien n'a plus de valeur.",
+        "Tout acte halal fait pour Allah avec une bonne intention est une adoration : manger, dormir, travailler, aimer.",
+        "La du'â ne se dispense pas des causes. Attache ton chameau, puis place ta confiance en Allah."
+      ]} />
+
+      <ChapterCompletion chapterId="islam" chapterTitle="Partie 1 — L'Islam" />
+    </div>
+  );
+}
+
+function SubSection({ title, open, onToggle, children }) {
+  return (
+    <div style={{ margin: "0.8rem 0", border: `1px solid rgba(27,107,95,${open ? 0.18 : 0.08})`, borderRadius: 14, background: open ? COLORS.white : "transparent" }}>
+      <button onClick={onToggle} aria-expanded={open} style={{
+        width: "100%", padding: "1.1rem 1.5rem", display: "flex", justifyContent: "space-between", alignItems: "center",
+        border: "none", background: "transparent", cursor: "pointer", fontFamily: "'Source Sans 3', sans-serif",
+        fontSize: "1.05rem", fontWeight: 600, color: open ? COLORS.teal : COLORS.dark, textAlign: "left"
+      }}>
+        {title}
+        <svg
+          style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.25s ease", flexShrink: 0 }}
+          width="12" height="8" viewBox="0 0 12 8" fill="none"
+        >
+          <path d="M1 1.5L6 6.5L11 1.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+      <div style={{
+        overflow: "hidden",
+        maxHeight: open ? "4000px" : "0px",
+        opacity: open ? 1 : 0,
+        transition: open
+          ? "opacity 0.25s ease 0.05s, max-height 0.4s ease"
+          : "opacity 0.15s ease, max-height 0.3s ease"
+      }}>
+        <div style={{ padding: "0 1.5rem 1.5rem" }}>{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function TawhidContent() {
+  return (<>
+    <p>Le Tawhid c'est affirmer que Dieu est unique et qu'Il est le seul digne d'adoration. C'est à travers « La ilaha illa Allah » que vous affirmez ceci. Cependant, l'affirmer et en avoir la <em>certitude</em> — le yaqîn — sont deux choses différentes. Cette certitude se construit par la science et la méditation.</p>
+
+    <VersetBox
+      arabic="قُلۡ هُوَ ٱللَّهُ أَحَدٌ ۝ ٱللَّهُ ٱلصَّمَدُ ۝ لَمۡ يَلِدۡ وَلَمۡ يُولَدۡ ۝ وَلَمۡ يَكُن لَّهُۥ كُفُوًا أَحَدٌۢ"
+      french="Dis : Il est Allah, l'Unique. Allah, le Seul à qui tout recourt. Il n'a pas engendré et n'a pas été engendré. Et nul ne Lui est égal."
+      sourate="Sourate Al-Ikhlâs (112)"
+      numero="Versets 1-4"
+    />
+
+    <VersetBox
+      arabic="وَلَقَدۡ أُوحِيَ إِلَيۡكَ وَإِلَى ٱلَّذِينَ مِن قَبۡلِكَ لَئِنۡ أَشۡرَكۡتَ لَيَحۡبَطَنَّ عَمَلُكَ وَلَتَكُونَنَّ مِنَ ٱلۡخَٰسِرِينَ"
+      french="Il t'a été révélé, à toi et à ceux qui t'ont précédé : si tu associes à Allah, ton œuvre sera certainement réduite à néant et tu seras assurément du nombre des perdants."
+      sourate="Sourate Az-Zumar (39)"
+      numero="Verset 65"
+    />
+
+    <p>Sans Tawhid, les bonnes actions n'ont pas de racine. La certitude — le <strong>yaqîn</strong> — est le carburant de toute transformation. Pas la motivation. Pas la volonté. <strong>La certitude.</strong></p>
+
+    <ActionBox title="Ressources essentielles pour construire ton Tawhid">
+      <p style={{margin:0}}>1. Lis le Coran en méditation — pas d'une traite, mais en cherchant le sens. 2. Étudie <em>Les Trois Fondements</em> (Al-Usul Al-Thalatha) et <em>Les Quatre Règles</em> de Muhammad ibn Abd al-Wahhab. 3. Cinq minutes de Coran par jour minimum — la régularité prime sur la quantité.</p>
+    </ActionBox>
+  </>);
+}
+
+function PiliersContent() {
+  return (<>
+    <p>L'Islam repose sur des piliers — pas au sens décoratif, au sens structurel. Sans eux, votre pratique n'a pas de base.</p>
+    <h4>Les cinq piliers de l'Islam</h4>
+    <p>L'attestation de foi (chahada), la prière cinq fois par jour, le jeûne du Ramadan, l'aumône (zakat), le pèlerinage pour ceux qui en ont la capacité. Ces cinq piliers sont des obligations — pas des suggestions. Allah ne charge pas une âme au-delà de ce qu'elle peut supporter.</p>
+    <h4>Les piliers de la foi</h4>
+    <p>Croire en Allah, aux anges, aux Livres révélés, aux messagers, au destin (qadar), et au Jour dernier. Sans ces six piliers, vous ne pouvez pas affirmer votre islam. La bonne nouvelle : le Coran détaille chacun de ces points. Tout est là. Il suffit de lire.</p>
+  </>);
+}
+
+function PriereContent() {
+  return (<>
+    <p>La prière n'est pas une obligation pesante. C'est le seul moment de la journée où tu parles directement à Allah, sans intermédiaire. Le <strong>khushû'</strong> — la présence du cœur — est ce qui transforme un rituel en véritable dialogue.</p>
+
+    <HadithBox
+      arabic="الصَّلَاةُ عِمَادُ الدِّينِ، فَمَنْ أَقَامَهَا فَقَدْ أَقَامَ الدِّينَ، وَمَنْ هَدَمَهَا فَقَدْ هَدَمَ الدِّينَ"
+      french="La prière est le pilier de la religion. Celui qui l'accomplit a édifié la religion. Celui qui la délaisse l'a détruite."
+      source="Al-Bayhaqi, Shu'ab al-Iman — sens confirmé par de nombreux hadiths sahih"
+    />
+    <div className="grid-2">
+      <Card title="Fajr — L'ancre du jour">Se lever avant le monde. Seul avec Allah. Ce moment programme l'énergie mentale pour toute la journée. Ce n'est pas de la discipline, c'est de l'identité.</Card>
+      <Card title="Dhuhr & Asr — Le reset">En plein milieu de la journée active, tu t'arrêtes. Les pauses intentionnelles multiplient la productivité. C'est la Sunnah.</Card>
+      <Card title="Maghreb & Isha — La clôture">Tu fermes la journée en état d'adoration. Tu ne te couches pas comme une bête épuisée, tu te couches comme un serviteur.</Card>
+      <Card title="Anti-Waswas">Règle des 5 secondes : 5-4-3-2-1, lève-toi avant que ton cerveau décide. Les waswas de Shaytan ne résistent pas à l'action immédiate.</Card>
+    </div>
+    <StudyBox>
+      <p style={{margin:0}}>Ibn al-Qayyim, dans <em>Al-Wabil al-Sayyib</em>, décrit le khushû' comme le cœur qui se tient debout devant Allah, libéré de tout le reste. Commencez par mémoriser la traduction de ce que vous récitez. Quand vous dites « Iyyaka na'budu wa iyyaka nasta'in », vous déclarez votre dépendance totale à Allah.</p>
+    </StudyBox>
+
+    <h4>Les prières surérogatoires : aller plus loin</h4>
+    <p>Tahajjud (dernier tiers de la nuit) — la plus méritoire, développe la sincérité absolue. Witr après Isha — le Prophète ﷺ ne l'a jamais délaissée. Duha après le lever du soleil — gratitude pour le corps et l'énergie. Tawba (2 rak'at après un péché) — l'erreur est une porte vers le retour. Haja lors d'une difficulté — tawakkul en action.</p>
+  </>);
+}
+
+function IntentionContent() {
+  return (<>
+    <HadithBox
+      arabic="إِنَّمَا الْأَعْمَالُ بِالنِّيَّاتِ، وَإِنَّمَا لِكُلِّ امْرِئٍ مَا نَوَى"
+      french="Les actes ne valent que par les intentions, et chacun n'obtient que ce qu'il a voulu."
+      source="Sahih al-Bukhari n°1 · Sahih Muslim n°1907 — Hadith Mutawatir (premier hadith de Bukhari)"
+      grade="Sahih"
+    />
+    <p>Posez-vous la question maintenant : pourquoi priez-vous ? Pour Allah, ou par peur du jugement des autres ? La récompense de vos actions prendra exactement la forme de vos intentions.</p>
+    <p>Al-Ghazali, dans son <em>Ihya 'Ulum al-Din</em>, consacre un livre entier à la niyya. L'intention pure est ce qui distingue l'acte d'adoration de l'acte ordinaire. La même action — donner de l'argent — peut être une sadaqa ou une ostentation selon ce qui est dans le cœur.</p>
+    <Tip>Imam Ahmad ibn Hanbal disait : « J'ai réfléchi à l'ensemble de la science et j'ai trouvé que tout repose sur huit hadiths. Le premier est celui de l'intention. »</Tip>
+    <ActionBox title="Comment purifier vos intentions">
+      <p style={{margin:0}}><strong>1.</strong> Acquérez de la science — on ne peut pas avoir de bonne intention sur ce qu'on ne comprend pas. <strong>2.</strong> Interrogez-vous avant chaque acte : pourquoi je fais ça ? Pour qui ? <strong>3.</strong> Apprenez les noms d'Allah — Al-Basir (Celui qui voit tout), Al-Khabir (parfaitement informé). Quand vous intégrez que rien ne Lui échappe, vos intentions se purifient d'elles-mêmes.</p>
+    </ActionBox>
+  </>);
+}
+
+function AdorationsContent() {
+  return (<>
+    <p>Les adorations ne se limitent pas à la prière. Tout acte fait pour Allah, avec une bonne intention, dans le cadre de ce qu'Il a autorisé, est une adoration. Manger correctement pour avoir l'énergie de L'adorer — adoration. Dormir suffisamment pour faire la Fajr — adoration. Travailler honnêtement — adoration.</p>
+    <h4>Le Dhikr — maintenir Allah présent</h4>
+    <div className="grid-2">
+      <Card title="SubhânaLlâh">Gloire à Allah — Calme l'esprit agité. Face à la beauté de la création.</Card>
+      <Card title="Al-hamduliLlâh">Louange à Allah — Gratitude permanente. Programme le cerveau positivement.</Card>
+      <Card title="Lâ ilâha illâLlâh">Il n'y a de dieu qu'Allah — Renforce le Tawhid. 100x/jour = 100 bonnes actions + 100 péchés effacés.</Card>
+      <Card title="AstaghfiruLlâh">Je demande pardon — Attire la subsistance. Ouvre les portes fermées (Coran 71:10-12).</Card>
+    </div>
+    <h4>Arrêter l'addiction : la libération islamique</h4>
+    <HadithBox
+      arabic="مَا تَرَكَ عَبْدٌ شَيْئًا لِلَّهِ إِلَّا عَوَّضَهُ اللَّهُ خَيْرًا مِنْهُ"
+      french="Nul serviteur ne délaisse quelque chose pour Allah sans qu'Allah le lui remplace par quelque chose de meilleur."
+      source="Musnad Ahmad n°22565 · Sahih Ibn Hibban n°700"
+      grade="Hadith Sahih"
+    />
+    <p><strong>Substitution :</strong> remplacer le haram par un halal qui comble le même besoin. <strong>Déclencheurs :</strong> identifier et fermer les sources. <strong>Jeûne :</strong> calme biologiquement les pulsions. <strong>Dhikr :</strong> interrompt le cycle addictif — pattern interruption islamique.</p>
+  </>);
+}
+
+function DouaContent() {
+  return (<>
+    <p>La dou'a est le don le plus sous-estimé qu'Allah nous ait accordé. À tout moment, une ligne directe avec le Créateur. Pas besoin d'intermédiaire.</p>
+    <h4>Comment la du'â fonctionne</h4>
+    <Step num="1"><strong>Intention :</strong> La dou'a faite seul, en larmes, dans l'obscurité, ne monte pas de la même façon que celle faite pour paraître pieux.</Step>
+    <Step num="2"><strong>Repentir :</strong> Allah accorde particulièrement à ceux qui se repentent sincèrement.</Step>
+    <Step num="3"><strong>Certitude :</strong> Faites votre dou'a en étant convaincu qu'Allah va répondre.</Step>
+    <Step num="4"><strong>Patience :</strong> Trois réponses possibles — Il vous donne, Il remplace par mieux, ou Il reporte pour le Jour dernier.</Step>
+
+    <h4>Les Du'â des Prophètes</h4>
+    <div className="grid-2">
+      <Card title="Yunus — La délivrance">Lâ ilâha illâ Anta, subhânaka innî kuntu minadh-dhâlimîn — Dans l'impasse, l'anxiété, le blocage total.</Card>
+      <Card title="Moussa — La stabilité">Rabbi innî limâ anzalta ilayya min khayrin faqîr — Pour le travail, le mariage, une opportunité.</Card>
+      <Card title="Ayoub — La résilience">Annî massaniyad-durru wa Anta arhamur-râhimîn — Pour les épreuves longues, la maladie.</Card>
+      <Card title="La constance">Yâ Hayyû Yâ Qayyûm, bi rahmatika astaghîth — Pour organiser sa vie et ses objectifs.</Card>
+    </div>
+
+    <StudyBox>
+      <p style={{margin:0}}><strong>Du'â & Tawakkul (Kun Fayakun) :</strong> La du'â ne se dispense pas de causes — une du'â sans agir ne vaut rien. « Attache ton chameau et place ta confiance en Allah. » Allah donne à qui Il veut et d'autant plus à ceux qui Lui plaisent, qui ont une bonne intention et qui demandent le pardon. L'objectif : cultiver la sincérité et le bon comportement non pas pour des du'â exaucées, mais pour adorer son Créateur. ALLAH DIT « SOIS » ET LA CHOSE EST.</p>
+    </StudyBox>
+  </>);
+}
+
+function JeuneContent() {
+  return (<>
+    <p>Le jeûne est l'adoration qu'Allah a réservée pour Lui seul. C'est aussi un entraînement : quand vous jeûnez, vous prouvez à votre nafs que vous n'êtes pas gouverné par vos besoins immédiats.</p>
+    <HadithBox
+      arabic="كُلُّ عَمَلِ ابْنِ آدَمَ يُضَاعَفُ، الْحَسَنَةُ عَشْرُ أَمْثَالِهَا إِلَى سَبْعِمِائَةِ ضِعْفٍ، قَالَ اللَّهُ عَزَّ وَجَلَّ: إِلَّا الصَّوْمَ، فَإِنَّهُ لِي وَأَنَا أَجْزِي بِهِ"
+      french="Toute action du fils d'Adam est multipliée — la bonne action de dix à sept cents fois. Allah dit : Sauf le jeûne, car il est pour Moi, et c'est Moi qui en donne la récompense."
+      source="Sahih al-Bukhari n°1904 · Sahih Muslim n°1151"
+      grade="Hadith Qudsi Sahih"
+    />
+    <div className="grid-2">
+      <Card title="Ramadan">Jeûne obligatoire. Porte du Rayyan réservée aux jeûneurs. Efface les péchés passés.</Card>
+      <Card title="Lundi & Jeudi">Le Prophète ﷺ jeûnait ces 2 jours. Actes présentés à Allah ces jours-là.</Card>
+      <Card title="3 jours blancs">13, 14, 15 du mois lunaire. Équivalent à un jeûne mensuel continu.</Card>
+      <Card title="Jour d'Arafat">9 Dhul Hijja : efface les péchés de l'année passée et de l'année à venir.</Card>
+    </div>
+    <StudyBox>
+      <p style={{margin:0}}>Bienfaits scientifiques validés : autophagie cellulaire (Prix Nobel 2016, Yoshinori Ohsumi), réinitialisation du microbiome intestinal, augmentation du BDNF (Brain-Derived Neurotrophic Factor) améliorant la clarté mentale et la neuroplasticité. Le jeûne intermittent réduit l'inflammation chronique et stabilise la glycémie — des mécanismes que la Sunnah intégrait naturellement.</p>
+    </StudyBox>
+  </>);
+}
+
+function MariageContent() {
+  return (<>
+    <p>Le mariage en islam n'est pas seulement un contrat social. C'est une <strong>adoration</strong>. Le Prophète ﷺ a dit que celui qui se marie a accompli la moitié de sa religion.</p>
+    <VersetBox
+      arabic="وَمِنۡ ءَايَٰتِهِۦٓ أَنۡ خَلَقَ لَكُم مِّنۡ أَنفُسِكُمۡ أَزۡوَٰجٗا لِّتَسۡكُنُوٓاْ إِلَيۡهَا وَجَعَلَ بَيۡنَكُم مَّوَدَّةٗ وَرَحۡمَةًۚ إِنَّ فِي ذَٰلِكَ لَأٓيَٰتٖ لِّقَوۡمٖ يَتَفَكَّرُونَ"
+      french="Et parmi Ses signes, Il a créé pour vous, de vous-mêmes, des épouses afin que vous trouviez la quiétude auprès d'elles, et Il a mis entre vous de l'affection et de la miséricorde. Il y a là des signes pour les gens qui réfléchissent."
+      sourate="Sourate Ar-Rum (30)"
+      numero="Verset 21"
+    />
+    <HadithBox
+      arabic="مَنْ تَزَوَّجَ فَقَدِ اسْتَكْمَلَ نِصْفَ الدِّينِ، فَلْيَتَّقِ اللَّهَ فِي النِّصْفِ الْبَاقِي"
+      french="Celui qui se marie a accompli la moitié de la religion. Qu'il craigne Allah dans l'autre moitié."
+      source="Al-Bayhaqi, Shu'ab al-Iman · Al-Hakim (rapporté comme Hasan par Al-Albani)"
+      grade="Hasan"
+    />
+
+    <h4>Les conditions de validité</h4>
+    <p>Pour qu'un mariage soit valide : le consentement des deux époux, la présence du wali (tuteur) pour la femme, le mahr (dot), et deux témoins musulmans. Ces conditions ne sont pas des formalités — elles protègent les deux parties.</p>
+
+    <h4>Se préparer avant de chercher</h4>
+    <p>Un homme ou une femme qui n'a pas fait ce travail sur lui-même apporte ses fractures dans le mariage. La partie Réparation (Partie 4) et la partie Neurosciences (Partie 5) sont des prérequis réels. On ne peut pas construire une relation stable sur une identité instable.</p>
+    <div className="grid-2">
+      <Card title="Ce que tu dois avoir construit">Une relation avec Allah stable. Un caractère travaillé. Une direction dans la vie. La capacité à communiquer et à gérer tes émotions.</Card>
+      <Card title="Ce que tu ne dois pas attendre du conjoint">Qu'il te sauve. Qu'il comble ton vide. Qu'il remplace ta relation avec Allah. Le conjoint est un compagnon de route — pas un thérapeute.</Card>
+    </div>
+
+    <ActionBox title="Avant de chercher — les 3 questions honnêtes">
+      <p style={{margin:0}}><strong>1.</strong> Est-ce que je suis capable d'être un bon époux/une bonne épouse aujourd'hui — pas "quand ça ira mieux" ? <strong>2.</strong> Qu'est-ce que j'apporte réellement à un conjoint ? <strong>3.</strong> Est-ce que je cherche le mariage pour Allah, ou pour combler quelque chose ?</p>
+    </ActionBox>
+  </>);
+}
+
+function CorpsContent() {
+  return (<>
+    <p>L'adoration ne s'arrête pas au tapis de prière. Elle vit dans votre corps. Allah vous a confié un corps — pas pour l'exhiber, pas pour l'abîmer, mais pour en prendre soin comme d'un dépôt sacré.</p>
+    <blockquote>« Ton corps a un droit sur toi. » — Bukhari & Muslim</blockquote>
+
+    <h4>La Fitrah — les pratiques du corps prophétique</h4>
+    <div className="grid-2">
+      <Card title="Couper les ongles">Sunnah confirmée. Hygiène directe. À ne pas dépasser 40 jours.</Card>
+      <Card title="Siwak">Avant chaque prière idéalement. Purifie la bouche et plaît à Allah. Équivalent de 70 prières ordinaires selon certaines narrations.</Card>
+      <Card title="Enlever les poils pubiens">Partie de la Fitrah. Ne pas dépasser 40 jours. Hygiène corporelle complète.</Card>
+      <Card title="Wudû fréquent">Le wudû n'est pas seulement pour la prière. Le maintenir purifie le corps et l'esprit en continu.</Card>
+    </div>
+
+    <h4>Le corps comme instrument d'adoration</h4>
+    <p>Chaque membre du corps accomplit une adoration propre. Les yeux qui baissent le regard devant l'interdit. La langue qui dit la vérité. Les mains qui donnent. Les pieds qui marchent vers la mosquée. Ibn al-Qayyim dit : <em>« Le corps est le cheval de l'âme — s'il est bien nourri et bien entretenu, il porte l'âme vers Allah. S'il est abandonné, il la ralentit. »</em></p>
+
+    <ActionBox title="Check quotidien du corps">
+      <p style={{margin:0}}>Chaque matin, 3 questions : Mon corps est-il propre (wudû, hygiène) ? A-t-il mangé et dormi correctement ? A-t-il bougé aujourd'hui ? Un corps respecté rend l'adoration plus légère.</p>
+    </ActionBox>
+  </>);
+}
+
+// ────── PARTIE 2 — ENVIRONNEMENT ──────
+function EnvironnementSection() {
+  const [openSub, setOpenSub] = useState("semaine0");
+  const subs = [
+    { id: "semaine0", title: "Semaine Zéro — Le protocole de démarrage", content: <Semaine0Content /> },
+    { id: "sommeil", title: "1. Le Sommeil", content: <SommeilContent /> },
+    { id: "alimentation", title: "2. L'Alimentation", content: <AlimentationContent /> },
+    { id: "sport", title: "3. Le Sport & Condition Physique", content: <SportContent /> },
+    { id: "hygiene", title: "4. Hygiène & Bien-être", content: <HygieneContent /> },
+    { id: "pensees", title: "5. Les Pensées", content: <PenseesContent /> },
+  ];
+  return (
+    <div className="section-content fade-in">
+      <ChapterHeader number="2" title="L'Environnement" verse="La pureté est la moitié de la foi" verseRef="Sahih Muslim" />
+      <HadithBox
+        arabic="الطُّهُورُ شَطْرُ الْإِيمَانِ، وَالْحَمْدُ لِلَّهِ تَمْلَأُ الْمِيزَانَ، وَسُبْحَانَ اللَّهِ وَالْحَمْدُ لِلَّهِ تَمْلَآنِ — أَوْ تَمْلَأُ — مَا بَيْنَ السَّمَاوَاتِ وَالْأَرْضِ"
+        french="La pureté est la moitié de la foi. Al-hamdulillah remplit la balance. SubhânaLlah et Al-hamdulillah remplissent ce qui est entre les cieux et la terre."
+        source="Sahih Muslim n°223 — Livre de la Purification"
+        grade="Sahih"
+      />
+      <p>L'environnement est la base de tout. Votre corps et votre cerveau ont des besoins précis. Quand ces besoins ne sont pas satisfaits, votre capacité à pratiquer, à changer et à avancer s'effondre. Il y a un minimum à respecter.</p>
+      {subs.map(sub => (
+        <SubSection key={sub.id} title={sub.title} open={openSub === sub.id} onToggle={() => setOpenSub(openSub === sub.id ? null : sub.id)}>
+          {sub.content}
+        </SubSection>
+      ))}
+      <KeyTakeaway items={[
+        "Ton corps est une amanah — un dépôt sacré d'Allah. Prendre soin de lui est une adoration, pas de la vanité.",
+        "Le sommeil avant minuit est qualitativement différent. La Sunnah du coucher (ablution, côté droit, azkar) prépare le cerveau au repos profond.",
+        "Un tiers nourriture, un tiers eau, un tiers air — le Prophète ﷺ avait codifié la nutrition optimale 14 siècles avant la science moderne.",
+        "L'exercice augmente le BDNF (neuroplasticité), réduit l'anxiété de 48%, et améliore les capacités cognitives. 3x30min/semaine est le minimum.",
+        "L'overthinking se coupe par le dhikr — pas en supprimant les pensées, mais en redirigeant l'attention vers quelque chose de plus grand."
+      ]} />
+
+      <ChapterCompletion chapterId="environnement" chapterTitle="Partie 2 — L'Environnement" />
+    </div>
+  );
+}
+
+function Semaine0Content() {
+  return (<>
+    <p>Pour celui qui est au fond. Qui ne sait pas par où commencer. La plus grande erreur : vouloir tout changer en même temps. Le cerveau humain ne change pas comme ça. L'Islam non plus ne te l'impose pas — « facilite et ne complique pas » (Bukhari). UNE action par jour pendant 7 jours.</p>
+    {[
+      { j: "J1", t: "Fais les ablutions", d: "Juste les ablutions. Pas la prière encore. Ça prend 3 minutes. Ça brise l'inertie." },
+      { j: "J2", t: "Prie une seule prière", d: "Fajr de préférence. Si tu l'as ratée, prie la prochaine. Sans culpabilité." },
+      { j: "J3", t: "Dis les dhikr — 10 fois chacun", d: "SubhânaLlâh, Alhamdulillâh, AllahuAkbar. Ton cœur commence à se reconnecter." },
+      { j: "J4", t: "Un repas prophétique", d: "Dattes le matin, miel, ou eau assise en trois fois. Ton corps est aussi une ibadah." },
+      { j: "J5", t: "Supprime TikTok/Instagram 24h", d: "Prouve à ton cerveau que tu contrôles, pas lui." },
+      { j: "J6", t: "10 min de marche + dhikr", d: "Dis Alhamdulillâh pour chaque bienfait. Corps + dhikr = double reset." },
+      { j: "J7", t: "3 choses de gratitude", d: "Écris 3 choses pour lesquelles tu remercies Allah. Aussi petites soient-elles." },
+    ].map((step, i) => <Step key={i} num={step.j}><strong>{step.t}</strong> — {step.d}</Step>)}
+  </>);
+}
+
+function SommeilContent() {
+  return (<>
+    <StudyBox>
+      <p style={{margin:0}}>Matthew Walker, neuroscientifique à Berkeley (<em>Why We Sleep</em>), a documenté les effets du manque de sommeil : la testostérone chute, le cortisol monte, la mémoire se dégrade, la concentration diminue, les émotions deviennent incontrôlables. Quand vous dormez mal, vous êtes chimiquement différent.</p>
+    </StudyBox>
+    <p>Ne dépassez pas minuit. Le sommeil avant minuit est qualitativement plus profond (phases de sommeil lent profond). Le système glymphatique — découvert en 2012 par Maiken Nedergaard — nettoie le cerveau des déchets métaboliques pendant le sommeil profond.</p>
+    <h4>Protocole du sommeil prophétique</h4>
+    <Step num="1"><strong>Ablution avant de dormir</strong> (Bukhari) — purifie le corps et l'esprit.</Step>
+    <Step num="2"><strong>Dormir sur le côté droit</strong> (Bukhari) — favorise la digestion et la circulation cardiaque.</Step>
+    <Step num="3"><strong>Secouer son lit</strong> (Bukhari) — signal au cerveau que le repos est intentionnel.</Step>
+    <Step num="4"><strong>Azkar du coucher</strong> — Ayat al-Kursi + Al-Ikhlâs, Al-Falaq, An-Nâs (×3). Protection et déconnexion mentale.</Step>
+    <Step num="5"><strong>Se coucher tôt</strong> — Le Prophète ﷺ détestait veiller après Isha. Fajr = ancre de toute la journée.</Step>
+  </>);
+}
+
+function AlimentationContent() {
+  return (<>
+    <HadithBox
+      arabic="مَا مَلَأَ آدَمِيٌّ وِعَاءً شَرًّا مِنْ بَطْنٍ، بِحَسْبِ ابْنِ آدَمَ أُكُلَاتٌ يُقِمْنَ صُلْبَهُ، فَإِنْ كَانَ لَا مَحَالَةَ، فَثُلُثٌ لِطَعَامِهِ، وَثُلُثٌ لِشَرَابِهِ، وَثُلُثٌ لِنَفَسِهِ"
+      french="Le fils d'Adam ne remplit pas de récipient pire que son ventre. Il suffit au fils d'Adam de quelques bouchées pour redresser son dos. S'il ne peut s'en empêcher, qu'il réserve un tiers pour sa nourriture, un tiers pour sa boisson, et un tiers pour sa respiration."
+      source="Sunan at-Tirmidhi n°2380 · Ibn Majah n°3349"
+      grade="Hadith Hasan Sahih"
+    />
+    <p>Vos hormones dépendent en grande partie de ce que vous mangez. L'alimentation prophétique est modérée, variée, sans excès. Les aliments ultra-transformés créent une inflammation chronique qui affecte votre humeur, votre concentration et votre énergie.</p>
+    <h4>Ta journée type</h4>
+    <div className="grid-2">
+      <Card title="Matin">7 dattes Ajwa + verre d'eau + 1 cuillère de miel à jeun</Card>
+      <Card title="Déjeuner">Protéines (poulet/poisson/légumineuses) + légumes + glucides modérés</Card>
+      <Card title="Snack">Poignée d'amandes ou fruit frais + eau</Card>
+      <Card title="Dîner">Repas léger. Talbina si fatigue ou tristesse. Éviter les féculents le soir.</Card>
+    </div>
+    <h4>Les aliments bénis — Science & Spiritualité</h4>
+    <div className="grid-2">
+      <Card title="Miel (Coran 16:69)">Antibactérien, cicatrisant. 1 cuillère le matin à jeun.</Card>
+      <Card title="Nigelle (Bukhari)">Anti-inflammatoire, antioxydant. Thymoquinone : 1200+ études publiées.</Card>
+      <Card title="Dattes Ajwa (Bukhari)">Antioxydants, magnésium, fibres. 7 dattes le matin.</Card>
+      <Card title="Huile d'olive (Tirmidhi)">Oméga-9, polyphénols. Consommation et soin. Diète méditerranéenne.</Card>
+      <Card title="Talbina (Bukhari)">Bouillie d'orge. Recommandée contre la tristesse. Bêta-glucane stabilise la glycémie.</Card>
+      <Card title="Grenade (Coran 55:68)">Punicalagins, antioxydants puissants. Fruit béni coranique.</Card>
+    </div>
+  </>);
+}
+
+function SportContent() {
+  return (<>
+    <HadithBox
+      arabic="الْمُؤْمِنُ الْقَوِيُّ خَيْرٌ وَأَحَبُّ إِلَى اللَّهِ مِنَ الْمُؤْمِنِ الضَّعِيفِ، وَفِي كُلٍّ خَيْرٌ، احْرِصْ عَلَى مَا يَنْفَعُكَ وَاسْتَعِنْ بِاللَّهِ وَلَا تَعْجَزْ"
+      french="Le croyant fort est meilleur et plus aimé d'Allah que le croyant faible, et il y a du bien dans les deux. Attache-toi à ce qui te bénéficie, demande l'aide d'Allah et ne te laisse pas aller au découragement."
+      source="Sahih Muslim n°2664 — Livre du Destin"
+      grade="Sahih"
+    />
+    <p>Le sport agit sur plusieurs niveaux simultanément. Mentalement, il libère les émotions accumulées — l'anxiété, la frustration, la tension. La discipline commence par le corps.</p>
+    <StudyBox>
+      <p style={{margin:0}}>L'exercice physique augmente le BDNF (Brain-Derived Neurotrophic Factor) — une protéine qui favorise la création de nouvelles connexions neuronales. Études de Ratey (Harvard, <em>Spark</em>, 2008) : 30 minutes d'exercice modéré augmentent les capacités cognitives de 20% pendant 2-3 heures. L'activité physique régulière réduit l'anxiété de 48% (méta-analyse Stubbs et al., 2017, <em>Journal of Psychiatric Research</em>).</p>
+    </StudyBox>
+    <h4>Programme minimum — 3x30min/semaine</h4>
+    <Step num="Lun"><strong>Force :</strong> pompes, squats, tractions si possible (30-45 min). Commence à 10 pompes si besoin.</Step>
+    <Step num="Mer"><strong>Endurance :</strong> marche rapide ou course légère (30 min). Rythme de conversation.</Step>
+    <Step num="Ven"><strong>Marche après Jumu'ah :</strong> Sunnah de la marche dynamique. 20 min suffit.</Step>
+    <p>La Salât est en soi un programme de mobilité, gainage et étirements. 5 min d'étirements au réveil chaque jour.</p>
+    <h4>Médecine prophétique — récupération</h4>
+    <div className="grid-2">
+      <Card title="Hijama">Ventouses sèches ou humides. Améliore la circulation, soulage les douleurs chroniques. Jours recommandés : 17, 19 ou 21 du mois lunaire.</Card>
+      <Card title="Hydratation Sunnah">Boire assis, en trois fois, en disant Bismillah. 2L minimum/jour. L'eau est mentionnée comme purification dans le Coran (8:11).</Card>
+    </div>
+  </>);
+}
+
+function HygieneContent() {
+  return (<>
+    <p>Ton corps est une amanah — une confiance qu'Allah t'a accordée. La Fitrah : cinq pratiques prescrites par le Prophète ﷺ, toutes confirmées par la science moderne.</p>
+    <div className="grid-2">
+      <Card title="Douche & propreté">Douche quotidienne. Grand bain le vendredi (Jumu'ah). Se laver soigneusement les zones intimes.</Card>
+      <Card title="Peau & visage">Alimentation saine = meilleure skincare. Huile de nigelle prophétique & prouvée. 1.5L eau/jour minimum.</Card>
+      <Card title="Parfum">Le Prophète ﷺ aimait le parfum. Oud, musc, ambre : fragrances prophétiques. Chercher les attars.</Card>
+      <Card title="Cheveux & barbe">Coupe adaptée à la morphologie. Barbe entretenue, propre. Huile de nigelle sur le cuir chevelu.</Card>
+    </div>
+  </>);
+}
+
+function PenseesContent() {
+  return (<>
+    <p>Votre environnement est une matérialisation de vos pensées. L'overthinking — la pensée excessive et circulaire — est l'un des pièges les plus courants et les plus paralysants.</p>
+    <StudyBox>
+      <p style={{margin:0}}>Daniel Kahneman (<em>Thinking Fast and Slow</em>) distingue le système 1 (rapide, automatique) et le système 2 (lent, réfléchi). L'overthinking est un système 1 emballé qui tourne en boucle sans activer le système 2. Al-Ghazali avait identifié le même mécanisme au XIème siècle sous le nom de <em>hawajis</em> — les pensées parasites qui empêchent le cœur d'être présent à Allah.</p>
+    </StudyBox>
+    <p>Le dhikr est l'antidote. Pas comme une formule magique — comme un recentrage actif. « Ala bi dhikrillahi tatma'innu al-qulub » — c'est par le rappel d'Allah que les cœurs s'apaisent.</p>
+  </>);
+}
+
+// ────── PARTIE 3 — ORIGINE COMPORTEMENTS ──────
+function ComportementsSection() {
+  return (
+    <div className="section-content fade-in">
+      <ChapterHeader number="3" title="L'Origine des Comportements" verse="L'âme est certes incitatrice au mal" verseRef="Coran 12:53" />
+      <VersetBox
+        arabic="وَمَآ أُبَرِّئُ نَفۡسِيٓۚ إِنَّ ٱلنَّفۡسَ لَأَمَّارَةُۢ بِٱلسُّوٓءِ إِلَّا مَا رَحِمَ رَبِّيٓۚ إِنَّ رَبِّي غَفُورٞ رَّحِيمٞ"
+        french="Je ne m'absous pas moi-même, car l'âme est certes incitatrice au mal, sauf celle que protège mon Seigneur. Mon Seigneur est Certes Tout Pardonnant, Très Miséricordieux."
+        sourate="Sourate Yusuf (12)"
+        numero="Verset 53"
+      />
+      <p>Chaque comportement, chaque réaction, chaque pensée récurrente a une origine. Et cette origine se situe à l'un de ces trois niveaux :</p>
+
+      <div className="grid-2" style={{gridTemplateColumns: "1fr"}}>
+        <Card title="النفس An-Nafs — L'Âme qui ordonne le mal">
+          Al-Ghazali la compare à un enfant indiscipliné qui, sans éducation spirituelle, se laisse dominer par ses instincts. Ibn Taymiyya : la purification ne vise pas à supprimer les désirs mais à les réguler selon l'agrément d'Allah. Ce que la psychologie moderne appelle les « biais cognitifs » et les « automatismes comportementaux », l'islam l'appelle depuis des siècles les inclinations de la nafs.
+        </Card>
+        <Card title="الهوى Al-Hawā — Le Caprice et l'impulsion">
+          L'inclination du désir sans preuve ni vérité (Coran 38:26, 45:23). Ibn al-Qayyim : le hawā divise les hommes entre ceux qui suivent la vérité et ceux qui suivent leurs préférences. Al-Ghazali : son danger réside dans sa capacité à orienter progressivement vos choix jusqu'à vous aliéner de vous-même. Kahneman dirait : le système 1 non régulé qui prend le dessus.
+        </Card>
+        <Card title="الشيطان Shaytan — Le murmure extérieur">
+          Il ne possède pas de pouvoir direct. Son action est progressive et subtile : il suggère, embellit le faux, repousse le repentir. Il ne vous force jamais. Il murmure jusqu'à ce que vous choisissiez vous-même. (Coran 35:6)
+        </Card>
+      </div>
+
+      <div style={{
+        margin: "2rem 0", padding: "1.5rem", background: COLORS.tealPale, borderRadius: 14
+      }}>
+        <p style={{ margin: 0, fontWeight: 600, color: COLORS.teal }}>
+          La mécanique : Shaytan suggère → al-hawā désire → an-nafs exécute ou résiste.<br />
+          La voie de la tazkiya : connaissance (distinguer le vrai du faux) + patience (résister aux impulsions) + rappel d'Allah (affaiblir les suggestions).
+        </p>
+      </div>
+
+      <ChapterCompletion chapterId="comportements" chapterTitle="Partie 3 — L'Origine des Comportements" />
+    </div>
+  );
+}
+
+// ────── PARTIE 4 — RÉPARATION ──────
+function ReparationSection() {
+  const [openSub, setOpenSub] = useState("pont");
+  const subs = [
+    { id: "pont", title: "Le pont islam-psychologie", content: <PontContent /> },
+    { id: "questionnaire", title: "Questionnaire d'identification", content: <QuestionnaireContent /> },
+    { id: "fam1", title: "Famille 1 — Le Rapport à Soi", content: <Famille1Content /> },
+    { id: "fam2", title: "Famille 2 — Le Rapport à l'Action", content: <Famille2Content /> },
+    { id: "fam3", title: "Famille 3 — Le Rapport aux Autres", content: <Famille3Content /> },
+    { id: "fam4", title: "Famille 4 — Le Rapport à l'Esprit", content: <Famille4Content /> },
+  ];
+  return (
+    <div className="section-content fade-in">
+      <ChapterHeader number="4" title="Réparation Comportementale" verse="Avec la difficulté vient la facilité" verseRef="Coran 94:6" />
+      {subs.map(sub => (
+        <SubSection key={sub.id} title={sub.title} open={openSub === sub.id} onToggle={() => setOpenSub(openSub === sub.id ? null : sub.id)}>
+          {sub.content}
+        </SubSection>
+      ))}
+
+      <ChapterCompletion chapterId="reparation" chapterTitle="Partie 4 — Réparation Comportementale" />
+    </div>
+  );
+}
+
+function PontContent() {
+  return (<>
+    <p>Vous avez appliqué ce qu'on a vu. Et pourtant certains comportements persistent. Ce n'est pas un manque de volonté ni de foi. C'est quelque chose de plus profond.</p>
+    <p>L'islam l'a identifié avant la psychologie moderne. La nafs possède des couches. En dessous vivent des blessures, des croyances, des peurs que vous n'avez jamais nommées. Elles agissent en silence.</p>
+    <StudyBox>
+      <p style={{margin:0}}>Al-Muhāsibī, savant musulman du IXème siècle — mille ans avant Freud — avait théorisé la <em>muhāsaba</em> dans son <em>Kitab al-Ri'aya</em> : l'examen rigoureux de soi. Les savants de l'islam pratiquaient cet examen quotidiennement, comme une adoration. On ne peut pas se purifier de ce qu'on refuse de voir.</p>
+    </StudyBox>
+    <p>Nous utilisons les deux approches ensemble. La psychanalyse pour nommer. La muhāsaba pour transformer. Le but : comprendre pour se libérer, nommer pour ne plus subir.</p>
+  </>);
+}
+
+function QuestionnaireContent() {
+  const [scores, setScores] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("questionnaire_scores") || "{}"); }
+    catch { return {}; }
+  });
+  const [current, setCurrent] = useState(0);
+
+  const handleScore = (idx, val) => {
+    const next = { ...scores, [idx]: val };
+    setScores(next);
+    localStorage.setItem("questionnaire_scores", JSON.stringify(next));
+  };
+
+  const aff = [
+    "Je ressens souvent une tension intérieure sans savoir exactement pourquoi.",
+    "Quand quelqu'un me critique, même légèrement, cela m'affecte profondément et longtemps.",
+    "J'ai du mal à commencer des tâches importantes même quand j'en ai le temps.",
+    "Quand une relation proche est menacée, je fais tout pour éviter la rupture.",
+    "Je pense que les autres vont découvrir que je ne suis pas aussi capable.",
+    "Quand je suis en colère, il m'est difficile de rester calme.",
+    "Quand je ne vais pas bien, je m'isole plutôt que de chercher du soutien.",
+    "Même quand j'atteins un objectif, j'ai du mal à en être satisfait.",
+    "Mon esprit tourne souvent en boucle sur des situations passées.",
+    "Je cherche souvent l'approbation des autres avant de prendre une décision.",
+    "Quand les choses commencent à bien aller, j'ai tendance à les compliquer.",
+    "Je ressens un vide intérieur difficile à nommer.",
+    "J'ai du mal à faire confiance aux gens.",
+    "Je me réfugie dans certaines habitudes quand je ne vais pas bien.",
+    "Je me sens souvent inférieur aux autres.",
+  ];
+
+  const total = aff.length;
+  const f1 = [0,4,11,14].reduce((s,i) => s + (scores[i]||0), 0);
+  const f2 = [2,7,10,13].reduce((s,i) => s + (scores[i]||0), 0);
+  const f3 = [3,6,9,12].reduce((s,i) => s + (scores[i]||0), 0);
+  const f4 = [1,5,8].reduce((s,i) => s + (scores[i]||0), 0);
+
+  if (current === total) {
+    return (
+      <>
+        <div style={{ margin: "1.5rem 0", padding: "1.5rem", background: COLORS.tealPale, borderRadius: 14 }}>
+          <h4 style={{ color: COLORS.teal, marginBottom: "0.8rem" }}>Vos résultats</h4>
+          {[
+            { name: "Rapport à Soi", score: f1, max: 20 },
+            { name: "Rapport à l'Action", score: f2, max: 20 },
+            { name: "Rapport aux Autres", score: f3, max: 20 },
+            { name: "Rapport à l'Esprit", score: f4, max: 15 },
+          ].map((f, i) => {
+            const pct = Math.round((f.score / f.max) * 100);
+            const level = pct > 70 ? "Priorité" : pct > 40 ? "Attention" : "Peu actif";
+            const col = pct > 70 ? "#C44" : pct > 40 ? COLORS.gold : COLORS.tealLight;
+            return (
+              <div key={i} style={{ marginBottom: "0.8rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9rem", marginBottom: "0.3rem" }}>
+                  <span style={{ fontWeight: 600 }}>{f.name}</span>
+                  <span style={{ color: col, fontWeight: 600 }}>{level} ({f.score}/{f.max})</span>
+                </div>
+                <div style={{ height: 6, background: "rgba(0,0,0,0.06)", borderRadius: 3 }}>
+                  <div style={{ height: "100%", width: `${pct}%`, background: col, borderRadius: 3, transition: "width 0.5s" }} />
+                </div>
+              </div>
+            );
+          })}
+          <p style={{ fontSize: "0.85rem", color: COLORS.gray, marginTop: "0.8rem" }}>
+            Ces scores ne vous définissent pas. Ils montrent où vous en êtes en ce moment.
+          </p>
+        </div>
+        <button className="question-pager-btn" onClick={() => setCurrent(0)}>
+          Recommencer
+        </button>
+      </>
+    );
+  }
+
+  return (
+    <div className="question-pager">
+      <div className="question-pager-header">
+        <span className="question-pager-count">{current + 1} / {total}</span>
+        <span style={{ fontSize: "0.72rem", color: COLORS.gray }}>1 = Pas du tout · 5 = Exactement moi</span>
+      </div>
+      <div className="question-pager-bar-track">
+        <div className="question-pager-bar-fill" style={{ width: `${((current + 1) / total) * 100}%` }} />
+      </div>
+      <div className="question-pager-content fade-in" key={current} style={{ flexDirection: "column", gap: "1.2rem", alignItems: "stretch" }}>
+        <p style={{ fontSize: "1rem", lineHeight: 1.75, color: COLORS.darkSoft, margin: 0 }}>
+          {current + 1}. {aff[current]}
+        </p>
+        <div style={{ display: "flex", gap: "0.5rem", justifyContent: "center" }}>
+          {[1,2,3,4,5].map(v => (
+            <button key={v} onClick={() => handleScore(current, v)} style={{
+              width: 44, height: 44, borderRadius: "50%", border: "none", cursor: "pointer",
+              background: scores[current] === v ? COLORS.teal : "rgba(0,0,0,0.06)",
+              color: scores[current] === v ? COLORS.white : COLORS.dark,
+              fontWeight: 700, fontSize: "0.95rem", transition: "all 0.2s",
+              transform: scores[current] === v ? "scale(1.12)" : "scale(1)",
+            }}>{v}</button>
+          ))}
+        </div>
+      </div>
+      <div className="question-pager-nav">
+        <button
+          className="question-pager-btn"
+          onClick={() => setCurrent(c => Math.max(0, c - 1))}
+          disabled={current === 0}
+        >
+          Précédent
+        </button>
+        <button
+          className="question-pager-btn primary"
+          onClick={() => setCurrent(c => c + 1)}
+        >
+          {current === total - 1 ? "Voir mes résultats" : "Suivant"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Famille1Content() {
+  return (<>
+    <h4>1.1 — L'anxiété</h4>
+    <StudyBox><p style={{margin:0}}>Aaron Beck, fondateur de la thérapie cognitive (années 70), a montré que l'anxiété est produite non par les situations, mais par l'interprétation qu'on en fait. Ibn al-Qayyim (<em>Ighathat al-Lahfan</em>) décrivait ce même mécanisme comme le cœur qui s'attache à ce qu'il ne contrôle pas au lieu de remettre l'affaire à Allah.</p></StudyBox>
+    <p>Islamiquement, l'anxiété chronique est souvent le signe d'un cœur qui porte ce qu'Allah a déjà pris en charge. Le tawakkul n'est pas de la passivité. « Et quiconque place sa confiance en Allah, Il lui suffit. »</p>
+    <QuestionBox>Depuis combien de temps ressentez-vous cette tension ? Y a-t-il un moment précis ?</QuestionBox>
+    <QuestionBox>Si vous deviez nommer la chose que vous craignez le plus profondément, ce serait quoi ?</QuestionBox>
+
+    <h4>1.2 — Le vide intérieur</h4>
+    <StudyBox><p style={{margin:0}}>Viktor Frankl, psychiatre et survivant des camps (<em>Man's Search for Meaning</em>), a développé la logothérapie : l'être humain a besoin de sens pour vivre. Le « vide existentiel » apparaît quand la vie n'a pas de direction. L'islam répond avec une précision que la psychologie occidentale n'atteint pas : « Ala bi dhikrillahi tatma'innu al-qulub. »</p></StudyBox>
+
+    <h4>1.3 — La faible estime de soi</h4>
+    <p>La faible estime de soi n'est pas de la modestie. Elle se construit sur des années — paroles de parents, expériences d'échec, humiliations non digérées. Islamiquement : « laqad khalaqna al-insana fi ahsani taqwim » — Allah a créé l'homme dans la meilleure des formes. Vous porter du mépris est une forme d'ingratitude.</p>
+
+    <h4>1.4 — Le syndrome de l'imposteur</h4>
+    <p>La conviction que votre succès est accidentel. Il touche souvent ceux dont la valeur était conditionnelle. La vérité du croyant est au milieu : je fais de mon mieux, et c'est Allah qui donne le tawfiq.</p>
+  </>);
+}
+
+function Famille2Content() {
+  return (<>
+    <h4>2.1 — La procrastination</h4>
+    <StudyBox><p style={{margin:0}}>La procrastination n'est pas de la paresse. C'est une gestion émotionnelle. James Clear (<em>Atomic Habits</em>) : on ne procrastine pas sur ce qu'on considère comme une expression de soi-même. Piers Steel (<em>The Procrastination Equation</em>, 2007) a montré que 95% des procrastineurs veulent changer mais ne peuvent pas sans modifier leur environnement et leur identité.</p></StudyBox>
+    <p>Islamiquement : « Profite de cinq choses avant cinq autres — ton temps libre avant tes occupations. »</p>
+
+    <h4>2.2 — Le perfectionnisme paralysant</h4>
+    <p>Le perfectionnisme paralysant empêche de faire. Il est souvent le fruit d'un environnement où les erreurs étaient mal tolérées. L'islam : « Chaque fils d'Adam est sujet à l'erreur, et les meilleurs sont ceux qui se repentent. »</p>
+
+    <h4>2.3 — Le sabotage de soi</h4>
+    <p>Quand vous détruisez ce qui marche. Il vient d'une croyance profonde sur ce que vous méritez. Le cerveau cherche la cohérence entre ce qu'il croit et ce qu'il vit. « Allah ne change pas l'état d'un peuple avant que celui-ci ne change ce qui est en lui-même. » Ce verset s'applique dans les deux sens.</p>
+
+    <h4>2.4 — Les addictions comportementales</h4>
+    <StudyBox><p style={{margin:0}}>Anna Lembke, psychiatre à Stanford (<em>Dopamine Nation</em>) : toute addiction comportementale répond à un besoin non satisfait. Le cerveau cherche le plaisir immédiat pour compenser une douleur qu'il ne sait pas traiter autrement. Ibn al-Qayyim décrivait le même mécanisme : le hawā en action.</p></StudyBox>
+    <QuestionBox>À quelle habitude recourez-vous le plus quand vous ne vous sentez pas bien ?</QuestionBox>
+    <QuestionBox>Qu'est-ce qui se passerait si vous restiez avec l'émotion inconfortable au lieu de la fuir ?</QuestionBox>
+  </>);
+}
+
+function Famille3Content() {
+  return (<>
+    <h4>3.1 — La peur de l'abandon</h4>
+    <StudyBox><p style={{margin:0}}>John Bowlby, fondateur de la théorie de l'attachement, a montré que les premières expériences relationnelles créent un modèle interne activé automatiquement dans toutes les relations adultes.</p></StudyBox>
+    <p>Le seul qui ne part jamais, c'est Allah. « Wa huwa ma'akum aynamā kuntum » — Il est avec vous où que vous soyez. Construire votre sécurité intérieure sur la présence d'Allah vous libère de la dépendance qui détruit les relations.</p>
+
+    <h4>3.2 — Le besoin de validation</h4>
+    <p>C'est ce que l'islam appelle le riya — l'ostentation. Agir pour le regard des hommes plutôt que pour Allah. Le Prophète ﷺ en parlait comme du « shirk caché ».</p>
+
+    <h4>3.3 — La difficulté à faire confiance</h4>
+    <p>La méfiance chronique est épuisante. Elle finit par créer exactement ce qu'elle cherche à éviter : la solitude. L'équilibre islamique : la husnuzan (bonne opinion d'autrui) combinée au discernement.</p>
+
+    <h4>3.4 — L'isolement</h4>
+    <p>L'isolement choisi n'est pas la solitude. La solitude est une ressource. L'isolement est une fuite.</p>
+    <HadithBox
+      arabic="الْمُؤْمِنُ الَّذِي يُخَالِطُ النَّاسَ وَيَصْبِرُ عَلَى أَذَاهُمْ أَعْظَمُ أَجْرًا مِنَ الْمُؤْمِنِ الَّذِي لَا يُخَالِطُ النَّاسَ وَلَا يَصْبِرُ عَلَى أَذَاهُمْ"
+      french="Le croyant qui se mêle aux gens et supporte leurs nuisances obtient une plus grande récompense que le croyant qui ne se mêle pas aux gens et ne supporte pas leurs nuisances."
+      source="Sunan Ibn Majah n°4032 · Musnad Ahmad n°5022"
+      grade="Hadith Sahih"
+    />
+  </>);
+}
+
+function Famille4Content() {
+  return (<>
+    <h4>4.1 — L'overthinking</h4>
+    <p>La pensée qui tourne en boucle sans produire de solution. Al-Ghazali appelait ça les hawajis. La solution : le dhikr — pas en supprimant les pensées, mais en recentrant l'attention vers quelque chose de plus grand.</p>
+
+    <h4>4.2 — La colère incontrôlée</h4>
+    <HadithBox
+      arabic="لَيْسَ الشَّدِيدُ بِالصُّرَعَةِ، إِنَّمَا الشَّدِيدُ الَّذِي يَمْلِكُ نَفْسَهُ عِنْدَ الْغَضَبِ"
+      french="Le fort n'est pas celui qui terrasse les gens à la lutte. Le fort est celui qui maîtrise son âme au moment de la colère."
+      source="Sahih al-Bukhari n°6114 · Sahih Muslim n°2609"
+      grade="Sahih"
+    />
+    <p>La colère explosive est souvent le signal d'une douleur sous-jacente non exprimée. Ibn al-Qayyim : la colère mal gérée donne à Shaytan une prise directe sur le comportement.</p>
+
+    <h4>4.3 — L'hypersensibilité émotionnelle</h4>
+    <p>Ressentir les choses fort n'est pas un défaut. C'est une sensibilité qui, bien orientée, devient une force. Mais elle doit être ancrée dans quelque chose de stable.</p>
+    <VersetBox
+      arabic="يَٰٓأَيُّهَا ٱلَّذِينَ ءَامَنُواْ ٱسۡتَعِينُواْ بِٱلصَّبۡرِ وَٱلصَّلَوٰةِۚ إِنَّ ٱللَّهَ مَعَ ٱلصَّٰبِرِينَ"
+      french="Ô vous qui croyez ! Cherchez secours dans la patience et la prière. Allah est avec les endurants."
+      sourate="Sourate Al-Baqara (2)"
+      numero="Verset 153"
+    />
+
+    <h4>4.4 — La rumination</h4>
+    <StudyBox><p style={{margin:0}}>Al-Muhāsibī distinguait la muhāsaba — l'examen productif — de la rumination stérile. La muhāsaba a un but : identifier, se repentir, avancer. La rumination est de la douleur qui se perpétue. Nolen-Hoeksema (Stanford, 2000) a montré que la rumination prolonge les épisodes dépressifs de 4x en moyenne.</p></StudyBox>
+  </>);
+}
+
+// ────── PARTIE 5 — NEUROSCIENCES ──────
+function NeurosciencesSection() {
+  return (
+    <div className="section-content fade-in">
+      <ChapterHeader number="5" title="Neurosciences & Construction d'Identité" verse="Innallaha la yughayyiru ma biqawmin hatta yughayyiru ma bi-anfusihim" verseRef="Coran 13:11" />
+      <VersetBox
+        arabic="إِنَّ ٱللَّهَ لَا يُغَيِّرُ مَا بِقَوۡمٍ حَتَّىٰ يُغَيِّرُواْ مَا بِأَنفُسِهِمۡۗ وَإِذَآ أَرَادَ ٱللَّهُ بِقَوۡمٖ سُوٓءٗا فَلَا مَرَدَّ لَهُۥۚ وَمَا لَهُم مِّن دُونِهِۦ مِن وَالٍ"
+        french="Allah ne change pas l'état d'un peuple tant que celui-ci ne change pas ce qui est en lui-même. Et quand Allah veut du mal à un peuple, rien ne peut le repousser. Et ils n'ont, en dehors de Lui, aucun protecteur."
+        sourate="Sourate Ar-Ra'd (13)"
+        numero="Verset 11"
+      />
+
+      <p>La partie réparation est derrière vous. Maintenant on construit ce qui va venir. Tu n'as pas un problème de motivation. <strong>Tu as un problème d'identité.</strong></p>
+
+      <h3>Comment votre cerveau fabrique votre identité</h3>
+      <StudyBox>
+        <p style={{margin:0}}>Votre cerveau est une machine à prédire. Chaque matin, il consulte tout ce qu'il a enregistré — vos habitudes, vos réactions, vos schémas — et reconstruit qui vous êtes. Automatiquement. C'est l'identité neurologique. Norman Doidge (<em>The Brain That Changes Itself</em>) a documenté la neuroplasticité : chaque pensée, chaque comportement, chaque environnement envoie un signal qui peut redessiner l'image que le cerveau a de vous. Lisa Feldman Barrett (<em>How Emotions Are Made</em>, 2017) confirme que le cerveau ne réagit pas au monde — il le prédit, puis ajuste. Changer les prédictions, c'est changer l'identité.</p>
+      </StudyBox>
+
+      <p>Voilà pourquoi changer de comportement sans changer d'identité ne fonctionne pas. Vous pouvez vous forcer quelques semaines. Mais si l'image reste la même, le cerveau finit toujours par ramener les choses à l'état d'origine.</p>
+
+      <h3>Le regard islamique sur le changement</h3>
+      <p>Le qadar ne signifie pas que vous êtes condamné. Il signifie que tout ce qui vous est arrivé avait une raison dans la sagesse d'Allah — mais que ce que vous faites de ces expériences vous appartient. Et la tawba est un pivot. Chaque fois que vous choisissez la discipline sur le confort, la vérité sur le déni — c'est une forme de tawba.</p>
+
+      <h3>L'isolation comme outil de reconstruction</h3>
+      <p>Le Prophète ﷺ, avant la révélation, se retirait dans la grotte de Hira. Seul. En contemplation. Ce n'était pas de la fuite — c'était une préparation.</p>
+      <ActionBox title="Protocole d'isolation (3 semaines minimum)">
+        <p style={{margin:0}}>Passez la majorité de votre temps seul. Coupez les réseaux sociaux. Remplissez ce temps avec trois choses : la prière, la lecture du Coran, et l'écriture de vos pensées dans un journal. Le vide que vous allez ressentir au début — traversez-le. C'est là que le vrai travail commence.</p>
+      </ActionBox>
+
+      <h3>Les 4 leviers de la nouvelle identité</h3>
+      <Step num="1"><strong>Décider qui vous voulez être AVANT de décider quoi faire.</strong> James Clear : les objectifs sans identité ne tiennent pas. Islamiquement : vous êtes un 'abd — un serviteur d'Allah. Construisez tout à partir de cette racine.</Step>
+      <Step num="2"><strong>L'environnement avant la volonté.</strong> La volonté est une ressource limitée — elle s'épuise (études Baumeister, <em>ego depletion</em>). Concevez votre environnement pour que les bons comportements soient les plus faciles.</Step>
+      <Step num="3"><strong>La preuve par l'acte.</strong> Commencez intentionnellement petit. La constance dans le petit construit ce que la grandeur intermittente ne construit pas. « Les actes les plus aimés d'Allah sont les plus réguliers, même s'ils sont peu. »</Step>
+      <Step num="4"><strong>La vision incluant l'ākhira.</strong> Vous ne construisez pas seulement pour cette vie. Ce que vous devenez en dunya est le reflet de ce que vous préparez pour l'ākhira.</Step>
+
+      <div className="grid-2">
+        <Card title="L'ancienne identité">
+          « Je suis quelqu'un qui ne tient pas. » « La discipline c'est pas pour moi. » « J'essaie mais j'abandonne toujours. »
+        </Card>
+        <Card title="La nouvelle identité islamique">
+          « Je suis un serviteur d'Allah qui se lève pour Fajr. » « Mon effort est une adoration. » « Je suis en construction, et c'est suffisant. »
+        </Card>
+      </div>
+
+      <StudyBox>
+        <p style={{margin:0}}><strong>Protocole neuroscientifique de changement d'identité :</strong> Hebbian learning (« neurons that fire together wire together ») — la répétition intentionnelle crée de nouvelles connexions neuronales. Après 21 jours, les nouveaux circuits commencent à se stabiliser. Après 66 jours (étude Lally et al., 2010, <em>European Journal of Social Psychology</em>), le nouveau comportement devient automatique. Les 5 prières quotidiennes fournissent 5 points d'ancrage neuronaux par jour — un système de renforcement que les neurosciences valident parfaitement.</p>
+      </StudyBox>
+
+      <ChapterCompletion chapterId="neurosciences" chapterTitle="Partie 5 — Neurosciences & Identité" />
+    </div>
+  );
+}
+
+// ────── PARTIE 6 — LE MONDE ──────
+function MondeSection() {
+  const [openSub, setOpenSub] = useState("hormones");
+  const subs = [
+    { id: "hormones", title: "1. Les Hormones et la société qui les dérègle", content: <HormonesContent /> },
+    { id: "relations", title: "2. Le néolibéralisme amoureux & les relations", content: <RelationsContent /> },
+    { id: "philosophie", title: "3. Le manque de philosophie dans le quotidien", content: <PhilosophieContent /> },
+  ];
+  return (
+    <div className="section-content fade-in">
+      <ChapterHeader number="6" title="Le Monde Qui T'a Fabriqué" verse="Ne réfléchissez-vous donc pas ?" verseRef="Coran, Afala tatafakkarun" />
+      {subs.map(sub => (
+        <SubSection key={sub.id} title={sub.title} open={openSub === sub.id} onToggle={() => setOpenSub(openSub === sub.id ? null : sub.id)}>
+          {sub.content}
+        </SubSection>
+      ))}
+
+      <ChapterCompletion chapterId="monde" chapterTitle="Partie 6 — Le Monde Qui T'a Fabriqué" />
+    </div>
+  );
+}
+
+function HormonesContent() {
+  return (<>
+    <p>Votre état intérieur est en grande partie régulé par des hormones. La société moderne a appris à les manipuler — pas dans votre intérêt.</p>
+    <div className="grid-2" style={{gridTemplateColumns:"1fr"}}>
+      <Card title="La Dopamine — l'hormone du manque">
+        <StudyBox><p style={{margin:0}}>Anna Lembke (<em>Dopamine Nation</em>, Stanford) : la dopamine n'est pas l'hormone du plaisir mais de l'anticipation du plaisir. Votre téléphone, les réseaux sociaux, la pornographie ont été conçus pour maintenir ce cycle en activation permanente. Le seuil monte. Ce qui vous procurait du plaisir avant ne suffit plus. La prière, qui exige la présence totale, devient une lutte contre votre propre cerveau qui réclame sa dose.</p></StudyBox>
+      </Card>
+      <Card title="Le Cortisol — l'hormone de la survie devenue chronique">
+        <p>Le cortisol chronique détruit le sommeil, attaque le système immunitaire, diminue la testostérone, crée de l'inflammation. Un homme sous cortisol chronique ne peut pas construire. Il peut seulement réagir. La société moderne maintient ce cortisol élevé par stimulation anxiogène permanente.</p>
+      </Card>
+      <Card title="La Sérotonine — l'hormone de la paix intérieure">
+        <p>Produite en grande partie dans l'intestin (90% — étude Yano et al., 2015, <em>Cell</em>). Dépend de la lumière naturelle, l'exercice physique, et la qualité des relations. La société moderne sabote ces trois conditions simultanément.</p>
+      </Card>
+      <Card title="L'Ocytocine — l'hormone du lien">
+        <p>Libérée lors du contact physique, de la confiance, de la proximité authentique. La société des écrans a remplacé la connexion profonde par les interactions superficielles en ligne.</p>
+      </Card>
+    </div>
+  </>);
+}
+
+function RelationsContent() {
+  return (<>
+    <StudyBox><p style={{margin:0}}>Eva Illouz (<em>Why Love Hurts</em>, <em>Cold Intimacies</em>) documente comment le capitalisme a transformé l'amour en marchandise. Byung-Chul Han (<em>L'Agonie d'Éros</em>) : la société de performance a éliminé l'altérité de l'amour — on consomme un miroir de ses propres désirs.</p></StudyBox>
+    <p>L'islam propose quelque chose de radicalement différent. Ibn Hazm al-Andalusi décrit l'amour comme un engagement de l'être total. Le nikah repose sur la sakina — la tranquillité, l'affection et la miséricorde. Trois choses qui ne s'obtiennent que dans la durée.</p>
+
+    <h4>Pourquoi les relations échouent vraiment</h4>
+    <StudyBox><p style={{margin:0}}>John Bowlby : les premières expériences relationnelles créent un modèle interne activé automatiquement. Erich Fromm (<em>L'Art d'Aimer</em>) : la plupart des gens ne savent pas aimer parce qu'ils n'ont jamais appris que l'amour est un art.</p></StudyBox>
+    <p>La sakina vient d'Allah. Le conjoint est un compagnon de route, pas un sauveur. Entrer en relation avec l'attente d'être sauvé, c'est condamner la relation à l'échec.</p>
+    <h4>Les trois fondements d'une relation qui tient</h4>
+    <Step num="1"><strong>La dîn, les valeurs, le caractère.</strong> Le Prophète ﷺ : « Quand quelqu'un dont vous agréez la religion et le caractère vous demande votre fille en mariage, mariez-la lui. »</Step>
+    <Step num="2"><strong>La communication comme adoration.</strong> Dire la vérité à son conjoint, exprimer ses besoins avec bienveillance, réparer les torts rapidement.</Step>
+    <Step num="3"><strong>La croissance commune.</strong> Grandir ensemble dans la foi, la connaissance, les projets.</Step>
+  </>);
+}
+
+function PhilosophieContent() {
+  return (<>
+    <p>Il y a une question que la société moderne vous décourage de poser : <strong>pourquoi ?</strong> Un être humain qui se pose cette question est beaucoup moins facile à contrôler.</p>
+    <StudyBox><p style={{margin:0}}>Viktor Frankl (<em>Man's Search for Meaning</em>) : l'homme peut supporter presque n'importe quelle condition s'il a un pourquoi. L'absence de sens — pas la souffrance, pas la pauvreté — est ce qui brise les êtres humains.</p></StudyBox>
+    <p>L'islam a un concept précis : la <strong>tafakkur</strong>. « Afala tatafakkarun » — ne réfléchissez-vous donc pas ? Ce n'est pas une invitation polie. C'est une injonction. Les grands philosophes de l'islam — Al-Fārābī, Ibn Rushd, Ibn Khaldun — étaient des penseurs rigoureux, pas malgré leur foi, mais à cause d'elle.</p>
+    <ActionBox title="Intégrer la réflexion dans le quotidien">
+      <p style={{margin:0}}>15 minutes par jour à quelque chose qui vous force à réfléchir en profondeur. Trois questions régulières : Qu'est-ce que je fais de mon temps — est-ce aligné avec ce que je veux construire ? Qu'est-ce que j'ai appris cette semaine ? Est-ce que je vis selon mes valeurs, ou selon les attentes de mon environnement ?</p>
+    </ActionBox>
+    <blockquote>« Examinez-vous avant d'être examinés. » — Omar ibn al-Khattab</blockquote>
+  </>);
+}
+
+// ────── PARTIE 7 — PRODUCTIVITÉ ──────
+function ProductiviteSection() {
+  return (
+    <div className="section-content fade-in">
+      <ChapterHeader number="7" title="Productivité & Tawakkul" verse="Profite de cinq choses avant cinq autres : ta jeunesse avant ta vieillesse, ta santé avant ta maladie" verseRef="Hakim" />
+
+      <h3>Le Tawakkul — ce n'est pas de la passivité</h3>
+      <p>C'est la stratégie du champion. 100% d'effort de ta part + 100% de confiance en Allah = la formule du Muslim high performer.</p>
+      <Step num="01"><strong>Effort absolu</strong> — 100% de ce qui dépend de toi. Le Prophète ﷺ était le plus travailleur de la Oummah.</Step>
+      <Step num="02"><strong>Détachement du résultat</strong> — Le résultat appartient à Allah. Tu travailles sans anxiété, sans obsession.</Step>
+      <Step num="03"><strong>Patience active (Sabr)</strong> — La patience islamique est active. Tu continues pendant que tu attends.</Step>
+      <Step num="04"><strong>Gratitude systématique</strong> — Chaque résultat, même l'échec, est une donnée. Le croyant gagne dans tous les cas.</Step>
+
+      <h3>Les systèmes battent les objectifs</h3>
+      <StudyBox><p style={{margin:0}}>James Clear (<em>Atomic Habits</em>) et Alex Hormozi (<em>$100M Offers</em>) convergent : « You don't rise to the level of your goals. You fall to the level of your systems. » Les 5 prières, les azkar, le jeûne, la Sunnah alimentaire : ce sont des systèmes de haute performance. Le Prophète ﷺ avait compris ça 1400 ans avant.</p></StudyBox>
+
+      <div className="grid-2" style={{gridTemplateColumns: "repeat(3, 1fr)"}}>
+        <Card title="Matin">Fajr (ancre l'âme) → Azkar du matin → 10 min Coran → Intention claire</Card>
+        <Card title="Journée">5 prières (reset neurologique) → Dhikr continu → Bismillah à chaque action → Comportement noble</Card>
+        <Card title="Soir">Bilan sans jugement → Azkar du soir → Witr → Intention pour demain</Card>
+      </div>
+
+      <h3>Trouver et lancer ton objectif de vie</h3>
+      <ActionBox>
+        <p style={{margin:0}}><strong>Brainstorm :</strong> 30 min seul, sans écran. Qu'est-ce qui t'habitait enfant ? <strong>Istikhara :</strong> avant tout engagement sérieux. <strong>Identifie ton pic de productivité</strong> (après Fajr ? Après Asr ?) — teste sur 2 semaines. <strong>1h/jour minimum</strong> sur ton projet, avant les réseaux. <strong>Validation rapide :</strong> montre ton projet à 3 personnes de confiance dans les 2 premières semaines.</p>
+      </ActionBox>
+
+      <h3>Passion & Loisir — la Sunnah du repos</h3>
+      <p>Le Prophète ﷺ faisait la course avec Aïcha, jouait avec les enfants, plaisantait sans mentir. Reposer ton âme est une Sunnah.</p>
+      <blockquote>« Allah aime que lorsque l'un d'entre vous accomplit une action, il la perfectionne. » — Bayhaqi</blockquote>
+      <p>Ta passion est un outil au service d'une mission plus grande que toi. Cherche ce qui t'anime pendant des heures sans regarder l'heure. Lie ta passion à une utilité pour l'Ummah. Ne sois pas esclave de la validation — ni des likes, ni des vues.</p>
+
+      <ChapterCompletion chapterId="productivite" chapterTitle="Partie 7 — Productivité & Tawakkul" />
+    </div>
+  );
+}
+
+// ────── PARTIE 8 — RECHUTE ──────
+function RechuteSection() {
+  return (
+    <div className="section-content fade-in">
+      <ChapterHeader number="8" title="La Rechute & Le Retour" verse="Ne désespérez pas de la miséricorde d'Allah" verseRef="Coran 39:53" />
+      <VersetBox
+        arabic="قُلۡ يَٰعِبَادِيَ ٱلَّذِينَ أَسۡرَفُواْ عَلَىٰٓ أَنفُسِهِمۡ لَا تَقۡنَطُواْ مِن رَّحۡمَةِ ٱللَّهِۚ إِنَّ ٱللَّهَ يَغۡفِرُ ٱلذُّنُوبَ جَمِيعًاۚ إِنَّهُۥ هُوَ ٱلۡغَفُورُ ٱلرَّحِيمُ"
+        french="Dis : Ô Mes serviteurs qui avez commis des excès à vos propres dépens, ne désespérez pas de la miséricorde d'Allah. Allah pardonne tous les péchés. C'est Lui le Très Pardonnant, le Très Miséricordieux."
+        sourate="Sourate Az-Zumar (39)"
+        numero="Verset 53"
+      />
+
+      <p>La rechute n'est pas un échec. C'est une information. L'Islam ne te demande pas d'être parfait. Il te demande de <strong>revenir</strong>.</p>
+      <HadithBox
+        arabic="كُلُّ بَنِي آدَمَ خَطَّاءٌ، وَخَيْرُ الْخَطَّائِينَ التَّوَّابُونَ"
+        french="Tous les fils d'Adam sont sujets à l'erreur. Et les meilleurs de ceux qui commettent des erreurs sont ceux qui se repentent souvent."
+        source="Sunan at-Tirmidhi n°2499 · Ibn Majah n°4251"
+        grade="Hadith Hasan"
+      />
+
+      <div className="grid-2">
+        <Card title="Rechute physique">Tu n'as pas fait de sport depuis 2 semaines. Solution : recommence demain avec une séance courte. → 10 pompes ce soir. C'est tout.</Card>
+        <Card title="Rechute spirituelle">Tu n'as pas prié depuis quelques jours. Solution : fais les ablutions maintenant. → Ablution + 2 rak'at Tawba maintenant.</Card>
+        <Card title="Rechute comportementale">Tu es retombé dans une addiction. Solution : Tawba immédiate. Identifie le déclencheur exact. → Istighfar × 70. Identifier le déclencheur.</Card>
+        <Card title="Rechute mentale">Tu as abandonné ton projet. Solution : la motivation revient après l'action. → Relis ta page d'engagement. Recommence.</Card>
+      </div>
+
+      <h3>Le protocole islamique du retour en 5 étapes</h3>
+      <Step num="1"><strong>Reconnais sans jugement</strong> — « J'ai rechuté. C'est une information. Pas une condamnation. »</Step>
+      <Step num="2"><strong>Tawba immédiate</strong> — AstaghfiruLlâh wa atûbu ilayk. Pas besoin d'attendre un bon moment. Maintenant. Allah est Ar-Rahmân avant tout.</Step>
+      <Step num="3"><strong>Identifie le déclencheur</strong> — Qu'est-ce qui a causé cette rechute exactement ? Le moment précis.</Step>
+      <Step num="4"><strong>Change UNE variable</strong> — Le lieu, l'heure, l'app, la fréquentation. « Change your environment first. » (James Clear)</Step>
+      <Step num="5"><strong>Recommence petit</strong> — Pas depuis le début. Juste la prochaine action. La plus petite possible.</Step>
+
+      <Divider />
+
+      <h3>Renaissance et rechute — comprendre le cycle</h3>
+      <StudyBox>
+        <p style={{margin:0}}>Votre identité est construite. Vous cheminez vers votre objectif et vous réalisez une sorte de renaissance — une bouffée de bonheur, une amélioration significative. Ce moment est à la fois le signe de votre réussite mais aussi le signe d'un risque de rechute. En effet, votre cerveau va relâcher l'effort après toute l'énergie dépensée pour construire votre nouvelle identité. Le transtheoretical model de Prochaska & DiClemente (1983) valide ce cycle : la phase de « maintenance » est celle où le risque de rechute est le plus élevé, précisément parce que le sentiment de réussite diminue la vigilance.</p>
+      </StudyBox>
+      <p>Le but sera de maintenir vos efforts. Si vous arrivez à maintenir — votre changement est terminé et réussi. Si vous n'arrivez pas — il faut se poser plus de questions sur la raison du changement. Ce test distingue ceux qui ont changé pour les bonnes raisons.</p>
+
+      <h3>Les 7 Lois de JADIS</h3>
+      {[
+        { num: "I", title: "La loi du Tawhid", desc: "Tout commence par Allah. Sans fondation spirituelle, aucune transformation ne tient." },
+        { num: "II", title: "La loi de la Fitrah", desc: "Ton corps est une amanah. Prendre soin de lui n'est pas de la vanité, c'est une adoration." },
+        { num: "III", title: "La loi de l'Identité", desc: "Tu n'as pas un problème de motivation. Tu as un problème d'identité." },
+        { num: "IV", title: "La loi des Systèmes", desc: "Tu tombes au niveau de tes systèmes. La Sunnah EST le système." },
+        { num: "V", title: "La loi du Tawakkul", desc: "100% d'effort + 100% de confiance en Allah." },
+        { num: "VI", title: "La loi de la Régularité", desc: "Petit et constant bat grand et rare." },
+        { num: "VII", title: "La loi du Retour", desc: "Tu vas rechuter. La question : dans combien de temps tu reviens ?" },
+      ].map((law, i) => (
+        <div key={i} style={{ display: "flex", gap: "1rem", alignItems: "baseline", margin: "0.8rem 0" }}>
+          <span style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.3rem", color: COLORS.gold, fontWeight: 700, minWidth: 30 }}>{law.num}</span>
+          <div><strong style={{ color: COLORS.teal }}>{law.title}</strong> — {law.desc}</div>
+        </div>
+      ))}
+
+      <ChapterCompletion chapterId="rechute" chapterTitle="Partie 8 — Rechute & Retour" />
+    </div>
+  );
+}
+
+// ────── PROGRAMME 90 JOURS ──────
+function ProgrammeSection() {
+  return (
+    <div className="section-content fade-in">
+      <ChapterHeader title="Programme d'Évolution en 90 Jours" verse="Allah aime ceux qui font preuve d'excellence dans tout ce qu'ils accomplissent" verseRef="Coran 3:134" />
+
+      <div className="grid-2">
+        <Card title="Semaine 0 — Démarrer en douceur">
+          Protocole Semaine Zéro (7 actions). Une seule prière si pas encore régulier. Ablution quotidienne. 3 choses de gratitude le soir.
+        </Card>
+        <Card title="Mois 1 — Poser les fondations">
+          5 prières à l'heure dont Fajr. Dhikr 5 min/jour. Hygiène quotidienne (fitrah). Sport 2x/semaine (10 pompes minimum).
+        </Card>
+        <Card title="Mois 2 — Construire le caractère">
+          Ajouter Witr & 1 nawâfil. Alimentation prophétique 80%. Trouver sa passion / projet. Journaling quotidien 5 min.
+        </Card>
+        <Card title="Mois 3 — Lance-toi vraiment">
+          Tawakkul : agir sans peur. 1h/jour sur son projet. Istikhara avant décisions. Observer et mesurer le changement.
+        </Card>
+      </div>
+
+      <Divider />
+
+      <div style={{
+        textAlign: "center", padding: "3rem 2rem", margin: "2rem 0",
+        background: `linear-gradient(135deg, ${COLORS.teal}, ${COLORS.tealLight})`,
+        borderRadius: 20, color: COLORS.white
+      }}>
+        <div className="arabic-text" style={{ color: COLORS.goldLight, marginBottom: "1rem" }}>
+          وَٱللَّهُ يُحِبُّ ٱلۡمُحۡسِنِينَ
+        </div>
+        <p style={{ color: COLORS.white, fontFamily: "'Playfair Display', serif", fontSize: "1.2rem", fontStyle: "italic", maxWidth: 500, margin: "0 auto 1.5rem" }}>
+          « Allah aime ceux qui font preuve d'excellence. »
+        </p>
+        <p style={{ color: "rgba(255,255,255,0.85)", maxWidth: 450, margin: "0 auto 1.5rem", lineHeight: 1.7 }}>
+          L'Ihsân — l'excellence — est accessible à tout croyant qui choisit, chaque jour, de faire un peu mieux que la veille. C'est ça, JADIS.
+        </p>
+        <div style={{
+          width: 60, height: 2, background: COLORS.gold, margin: "1.5rem auto"
+        }} />
+        <p style={{ color: "rgba(255,255,255,0.9)", fontSize: "1.1rem", fontWeight: 600 }}>
+          Les clés sont maintenant entre tes mains.<br />
+          Tu vas rechuter. C'est prévu. Ce n'est pas la fin.<br />
+          <span style={{ color: COLORS.goldLight, fontSize: "1.3rem" }}>Reviens.</span>
+        </p>
+        <p style={{ color: COLORS.goldLight, marginTop: "1.5rem", fontSize: "1.1rem" }}>
+          بارك الله فيك
+        </p>
+      </div>
+
+      <ChapterCompletion chapterId="programme" chapterTitle="Programme 90 Jours" />
+    </div>
+  );
+}
+
+// ────── COMMUNAUTÉ ──────
+const communauteInputStyle = {
+  padding: "0.6rem 0.9rem",
+  borderRadius: 10,
+  border: "1px solid rgba(0,0,0,0.1)",
+  fontFamily: "'Source Sans 3', sans-serif",
+  fontSize: "0.9rem",
+  color: COLORS.dark,
+  background: COLORS.cream,
+  outline: "none",
+  width: "100%",
+};
+
+const SEED_POSTS = [
+  {
+    id: 1,
+    author: "Youssef M.",
+    avatar: "Y",
+    category: "progres",
+    title: "30 jours sans réseaux sociaux : mon bilan",
+    content:
+      "Alhamdulillah, j'ai terminé le premier mois. La différence sur ma concentration est réelle. J'ai relu Al-Fatiha avec une présence que je n'avais plus depuis des années. Le chapitre sur l'environnement m'a donné le déclic.",
+    likes: 24,
+    likedByMe: false,
+    replies: [
+      {
+        id: 1,
+        author: "Imane B.",
+        avatar: "I",
+        content:
+          "MashAllah frère, c'est une inspiration. Moi j'en suis à 10 jours et c'est déjà transformateur.",
+        likes: 5,
+        likedByMe: false,
+      },
+    ],
+    timestamp: Date.now() - 86400000 * 3,
+  },
+  {
+    id: 2,
+    author: "Fatima Z.",
+    avatar: "F",
+    category: "question",
+    title: "Comment gérer la rechute sans se flageller ?",
+    content:
+      "Je suis retombée dans mes anciennes habitudes après 3 semaines de progrès. Le chapitre sur la rechute m'a aidé mais j'ai du mal à ne pas m'en vouloir. Des conseils de frères ou sœurs qui sont passés par là ?",
+    likes: 18,
+    likedByMe: false,
+    replies: [
+      {
+        id: 1,
+        author: "Bilal K.",
+        avatar: "B",
+        content:
+          "Ibn Al Qayyim dit que la honte sincère de la faute est elle-même une ibada. Tawbah, puis on repart — sans s'accabler. Allah est Al-Ghafour.",
+        likes: 12,
+        likedByMe: false,
+      },
+    ],
+    timestamp: Date.now() - 86400000 * 5,
+  },
+  {
+    id: 3,
+    author: "Hamza D.",
+    avatar: "H",
+    category: "obstacle",
+    title: "Environnement toxique au travail : comment tenir ?",
+    content:
+      "Mon environnement professionnel va totalement à l'encontre de ce que j'essaie de construire. Des collègues qui médisent, une ambiance négative. J'ai appliqué les conseils du chapitre 2 mais c'est difficile au quotidien.",
+    likes: 31,
+    likedByMe: false,
+    replies: [],
+    timestamp: Date.now() - 86400000,
+  },
+  {
+    id: 4,
+    author: "Sara A.",
+    avatar: "S",
+    category: "partage",
+    title: "Une ayah qui a tout changé pour moi",
+    content:
+      "« Et celui qui craint Allah, Il lui ménage une issue et lui accorde Sa subsistance d'une façon à laquelle il ne s'attendait pas. » (65:2-3). Je la récite chaque matin depuis le début de la formation. Le tawakkul devient concret.",
+    likes: 42,
+    likedByMe: false,
+    replies: [],
+    timestamp: Date.now() - 86400000 * 2,
+  },
+];
+
+function CommunauteSection() {
+  const [posts, setPosts] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("communautePosts") || "null");
+      if (saved && Array.isArray(saved) && saved.length > 0) return saved;
+    } catch {}
+    return SEED_POSTS;
+  });
+
+  const [filter, setFilter] = useState("tous");
+  const [showForm, setShowForm] = useState(false);
+  const [newPost, setNewPost] = useState({ author: "", title: "", content: "", category: "progres" });
+  const [replyInputs, setReplyInputs] = useState({});
+  const [activeReply, setActiveReply] = useState(null);
+
+  const categories = [
+    { id: "tous", label: "Tous" },
+    { id: "progres", label: "Progrès" },
+    { id: "obstacle", label: "Obstacles" },
+    { id: "question", label: "Questions" },
+    { id: "partage", label: "Partages" },
+  ];
+
+  const categoryMeta = {
+    progres:  { label: "Progrès",  bg: COLORS.tealPale,                      text: COLORS.teal },
+    obstacle: { label: "Obstacle", bg: "rgba(239,68,68,0.08)",               text: "#DC2626" },
+    question: { label: "Question", bg: "rgba(196,163,90,0.12)",              text: COLORS.gold },
+    partage:  { label: "Partage",  bg: "rgba(99,102,241,0.08)",              text: "#6366F1" },
+  };
+
+  const savePosts = (updated) => {
+    setPosts(updated);
+    localStorage.setItem("communautePosts", JSON.stringify(updated));
+  };
+
+  const handleLike = (postId) => {
+    savePosts(
+      posts.map((p) =>
+        p.id !== postId
+          ? p
+          : { ...p, likes: p.likedByMe ? p.likes - 1 : p.likes + 1, likedByMe: !p.likedByMe }
+      )
+    );
+  };
+
+  const handleLikeReply = (postId, replyId) => {
+    savePosts(
+      posts.map((p) =>
+        p.id !== postId
+          ? p
+          : {
+              ...p,
+              replies: p.replies.map((r) =>
+                r.id !== replyId
+                  ? r
+                  : { ...r, likes: r.likedByMe ? r.likes - 1 : r.likes + 1, likedByMe: !r.likedByMe }
+              ),
+            }
+      )
+    );
+  };
+
+  const handleSubmitPost = () => {
+    if (!newPost.author.trim() || !newPost.title.trim() || !newPost.content.trim()) return;
+    const post = {
+      id: Date.now(),
+      author: newPost.author.trim(),
+      avatar: newPost.author.trim()[0].toUpperCase(),
+      category: newPost.category,
+      title: newPost.title.trim(),
+      content: newPost.content.trim(),
+      likes: 0,
+      likedByMe: false,
+      replies: [],
+      timestamp: Date.now(),
+    };
+    savePosts([post, ...posts]);
+    setNewPost({ author: "", title: "", content: "", category: "progres" });
+    setShowForm(false);
+  };
+
+  const handleSubmitReply = (postId) => {
+    const input = replyInputs[postId] || {};
+    if (!input.author?.trim() || !input.content?.trim()) return;
+    const reply = {
+      id: Date.now(),
+      author: input.author.trim(),
+      avatar: input.author.trim()[0].toUpperCase(),
+      content: input.content.trim(),
+      likes: 0,
+      likedByMe: false,
+    };
+    savePosts(
+      posts.map((p) => (p.id === postId ? { ...p, replies: [...p.replies, reply] } : p))
+    );
+    setReplyInputs((prev) => ({ ...prev, [postId]: {} }));
+    setActiveReply(null);
+  };
+
+  const formatTime = (ts) => {
+    const diff = Date.now() - ts;
+    const h = Math.floor(diff / 3600000);
+    if (h < 1) return "à l'instant";
+    if (h < 24) return `il y a ${h}h`;
+    const d = Math.floor(h / 24);
+    return d === 1 ? "hier" : `il y a ${d}j`;
+  };
+
+  const filtered = filter === "tous" ? posts : posts.filter((p) => p.category === filter);
+
+  return (
+    <div className="section-content fade-in">
+      {/* En-tête */}
+      <div style={{ textAlign: "center", marginBottom: "2.5rem", paddingTop: "0.5rem" }}>
+        <h2 className="heading-display" style={{ fontSize: "2rem", marginBottom: "0.6rem" }}>
+          Communauté
+        </h2>
+        <p style={{ color: COLORS.gray, fontSize: "1rem", maxWidth: 520, margin: "0 auto", lineHeight: 1.7 }}>
+          Un espace entre frères et sœurs pour partager vos avancées, vos obstacles et vos questions — en toute sincérité.
+        </p>
+        <div
+          style={{
+            width: 60, height: 3, margin: "1.2rem auto 0", borderRadius: 2,
+            background: `linear-gradient(90deg, ${COLORS.teal}, ${COLORS.gold})`,
+          }}
+        />
+      </div>
+
+      {/* Filtres + bouton nouveau post */}
+      <div
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          marginBottom: "1.5rem", flexWrap: "wrap", gap: "0.8rem",
+        }}
+      >
+        <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+          {categories.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setFilter(cat.id)}
+              style={{
+                padding: "0.4rem 0.85rem", borderRadius: 20,
+                border: `1px solid ${filter === cat.id ? COLORS.teal : "rgba(0,0,0,0.1)"}`,
+                background: filter === cat.id ? COLORS.teal : "transparent",
+                color: filter === cat.id ? COLORS.white : COLORS.gray,
+                fontSize: "0.82rem", fontWeight: 600, cursor: "pointer",
+                fontFamily: "'Source Sans 3', sans-serif", transition: "all 0.2s",
+              }}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={() => setShowForm(!showForm)}
+          style={{
+            padding: "0.5rem 1.2rem", borderRadius: 10, border: "none",
+            background: `linear-gradient(135deg, ${COLORS.teal}, ${COLORS.tealLight})`,
+            color: COLORS.white, fontWeight: 700, fontSize: "0.88rem",
+            fontFamily: "'Source Sans 3', sans-serif", cursor: "pointer",
+            boxShadow: "0 2px 8px rgba(27,107,95,0.2)",
+          }}
+        >
+          + Nouveau post
+        </button>
+      </div>
+
+      {/* Formulaire nouveau post */}
+      {showForm && (
+        <div
+          style={{
+            background: COLORS.white, border: `1px solid rgba(27,107,95,0.15)`,
+            borderRadius: 16, padding: "1.5rem", marginBottom: "1.5rem",
+            boxShadow: "0 4px 20px rgba(27,107,95,0.06)",
+          }}
+        >
+          <div
+            style={{
+              fontFamily: "'Playfair Display', serif", fontWeight: 600,
+              color: COLORS.teal, marginBottom: "1rem", fontSize: "1.1rem",
+            }}
+          >
+            Partager avec la communauté
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.8rem", marginBottom: "0.8rem" }}>
+            <input
+              placeholder="Ton prénom"
+              value={newPost.author}
+              onChange={(e) => setNewPost((p) => ({ ...p, author: e.target.value }))}
+              style={communauteInputStyle}
+            />
+            <select
+              value={newPost.category}
+              onChange={(e) => setNewPost((p) => ({ ...p, category: e.target.value }))}
+              style={communauteInputStyle}
+            >
+              <option value="progres">Progrès</option>
+              <option value="obstacle">Obstacle</option>
+              <option value="question">Question</option>
+              <option value="partage">Partage</option>
+            </select>
+          </div>
+          <input
+            placeholder="Titre de ton message"
+            value={newPost.title}
+            onChange={(e) => setNewPost((p) => ({ ...p, title: e.target.value }))}
+            style={{ ...communauteInputStyle, marginBottom: "0.8rem" }}
+          />
+          <textarea
+            placeholder="Exprime-toi librement..."
+            value={newPost.content}
+            onChange={(e) => setNewPost((p) => ({ ...p, content: e.target.value }))}
+            rows={4}
+            style={{ ...communauteInputStyle, resize: "vertical" }}
+          />
+          <div style={{ display: "flex", gap: "0.7rem", marginTop: "1rem" }}>
+            <button
+              onClick={handleSubmitPost}
+              style={{
+                padding: "0.6rem 1.4rem", borderRadius: 10, border: "none",
+                background: COLORS.teal, color: COLORS.white,
+                fontWeight: 700, fontSize: "0.88rem", cursor: "pointer",
+                fontFamily: "'Source Sans 3', sans-serif",
+              }}
+            >
+              Publier
+            </button>
+            <button
+              onClick={() => setShowForm(false)}
+              style={{
+                padding: "0.6rem 1.4rem", borderRadius: 10,
+                border: "1px solid rgba(0,0,0,0.1)", background: "transparent",
+                color: COLORS.gray, fontSize: "0.88rem", cursor: "pointer",
+                fontFamily: "'Source Sans 3', sans-serif",
+              }}
+            >
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Liste des posts */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+        {filtered.length === 0 && (
+          <div style={{ textAlign: "center", padding: "3rem", color: COLORS.grayLight, fontStyle: "italic" }}>
+            Aucun post dans cette catégorie pour l'instant.
+          </div>
+        )}
+        {filtered.map((post) => {
+          const meta = categoryMeta[post.category] || categoryMeta.partage;
+          return (
+            <div
+              key={post.id}
+              style={{
+                background: COLORS.white, border: "1px solid rgba(0,0,0,0.06)",
+                borderRadius: 16, padding: "1.4rem 1.5rem",
+                boxShadow: "0 2px 12px rgba(0,0,0,0.03)",
+              }}
+            >
+              {/* En-tête du post */}
+              <div style={{ display: "flex", alignItems: "flex-start", gap: "0.9rem", marginBottom: "0.8rem" }}>
+                <div
+                  style={{
+                    width: 42, height: 42, borderRadius: "50%", flexShrink: 0,
+                    background: `linear-gradient(135deg, ${COLORS.teal}, ${COLORS.tealLight})`,
+                    color: COLORS.white, display: "flex", alignItems: "center",
+                    justifyContent: "center", fontWeight: 700, fontSize: "1rem",
+                  }}
+                >
+                  {post.avatar}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap" }}>
+                    <span style={{ fontWeight: 700, fontSize: "0.95rem", color: COLORS.dark }}>
+                      {post.author}
+                    </span>
+                    <span
+                      style={{
+                        padding: "0.15rem 0.6rem", borderRadius: 20,
+                        background: meta.bg, color: meta.text,
+                        fontSize: "0.72rem", fontWeight: 700,
+                        textTransform: "uppercase", letterSpacing: "0.05em",
+                      }}
+                    >
+                      {meta.label}
+                    </span>
+                    <span style={{ fontSize: "0.78rem", color: COLORS.grayLight, marginLeft: "auto" }}>
+                      {formatTime(post.timestamp)}
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: "'Playfair Display', serif", fontWeight: 600,
+                      fontSize: "1.05rem", color: COLORS.dark, marginTop: "0.3rem",
+                    }}
+                  >
+                    {post.title}
+                  </div>
+                </div>
+              </div>
+
+              {/* Contenu */}
+              <p style={{ fontSize: "0.95rem", lineHeight: 1.75, color: COLORS.darkSoft, marginBottom: "1rem" }}>
+                {post.content}
+              </p>
+
+              {/* Actions */}
+              <div
+                style={{
+                  display: "flex", gap: "1.2rem", alignItems: "center",
+                  paddingTop: "0.8rem", borderTop: "1px solid rgba(0,0,0,0.04)",
+                }}
+              >
+                <button
+                  onClick={() => handleLike(post.id)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "0.4rem",
+                    background: "none", border: "none", cursor: "pointer",
+                    color: post.likedByMe ? COLORS.teal : COLORS.grayLight,
+                    fontWeight: post.likedByMe ? 700 : 400, fontSize: "0.88rem",
+                    fontFamily: "'Source Sans 3', sans-serif", transition: "all 0.2s",
+                  }}
+                >
+                  <svg width="14" height="13" viewBox="0 0 14 13" fill={post.likedByMe ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.4">
+                    <path d="M7 11.5C7 11.5 1 8 1 4.2A3 3 0 0 1 7 3a3 3 0 0 1 6 1.2C13 8 7 11.5 7 11.5Z" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  {post.likes}
+                </button>
+                <button
+                  onClick={() => setActiveReply(activeReply === post.id ? null : post.id)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "0.4rem",
+                    background: "none", border: "none", cursor: "pointer",
+                    color: activeReply === post.id ? COLORS.teal : COLORS.gray,
+                    fontSize: "0.88rem", fontFamily: "'Source Sans 3', sans-serif",
+                    fontWeight: activeReply === post.id ? 600 : 400,
+                  }}
+                >
+                  ↩ {post.replies.length} réponse{post.replies.length !== 1 ? "s" : ""}
+                </button>
+              </div>
+
+              {/* Réponses existantes */}
+              {post.replies.length > 0 && (
+                <div
+                  style={{
+                    marginTop: "1rem", paddingLeft: "1.2rem",
+                    borderLeft: `2px solid rgba(27,107,95,0.12)`,
+                  }}
+                >
+                  {post.replies.map((reply) => (
+                    <div
+                      key={reply.id}
+                      style={{
+                        marginBottom: "0.7rem", padding: "0.8rem 1rem",
+                        background: COLORS.tealPale, borderRadius: 12,
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "0.4rem" }}>
+                        <div
+                          style={{
+                            width: 28, height: 28, borderRadius: "50%",
+                            background: `linear-gradient(135deg, ${COLORS.gold}, ${COLORS.goldLight})`,
+                            color: COLORS.white, display: "flex", alignItems: "center",
+                            justifyContent: "center", fontWeight: 700, fontSize: "0.75rem",
+                          }}
+                        >
+                          {reply.avatar}
+                        </div>
+                        <span style={{ fontWeight: 700, fontSize: "0.85rem", color: COLORS.dark }}>
+                          {reply.author}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: "0.9rem", color: COLORS.darkSoft, lineHeight: 1.65, marginBottom: "0.5rem" }}>
+                        {reply.content}
+                      </p>
+                      <button
+                        onClick={() => handleLikeReply(post.id, reply.id)}
+                        style={{
+                          background: "none", border: "none", cursor: "pointer",
+                          color: reply.likedByMe ? COLORS.teal : COLORS.grayLight,
+                          fontSize: "0.8rem", fontWeight: reply.likedByMe ? 700 : 400,
+                          fontFamily: "'Source Sans 3', sans-serif",
+                        }}
+                      >
+                        <svg width="12" height="11" viewBox="0 0 14 13" fill={reply.likedByMe ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.4">
+                          <path d="M7 11.5C7 11.5 1 8 1 4.2A3 3 0 0 1 7 3a3 3 0 0 1 6 1.2C13 8 7 11.5 7 11.5Z" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                        {reply.likes}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Formulaire de réponse */}
+              {activeReply === post.id && (
+                <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid rgba(0,0,0,0.05)" }}>
+                  <input
+                    placeholder="Ton prénom"
+                    value={replyInputs[post.id]?.author || ""}
+                    onChange={(e) =>
+                      setReplyInputs((prev) => ({
+                        ...prev,
+                        [post.id]: { ...prev[post.id], author: e.target.value },
+                      }))
+                    }
+                    style={{ ...communauteInputStyle, marginBottom: "0.6rem" }}
+                  />
+                  <textarea
+                    placeholder="Ta réponse..."
+                    value={replyInputs[post.id]?.content || ""}
+                    onChange={(e) =>
+                      setReplyInputs((prev) => ({
+                        ...prev,
+                        [post.id]: { ...prev[post.id], content: e.target.value },
+                      }))
+                    }
+                    rows={3}
+                    style={{ ...communauteInputStyle, marginBottom: "0.7rem", resize: "vertical" }}
+                  />
+                  <div style={{ display: "flex", gap: "0.6rem" }}>
+                    <button
+                      onClick={() => handleSubmitReply(post.id)}
+                      style={{
+                        padding: "0.5rem 1.2rem", borderRadius: 10, border: "none",
+                        background: COLORS.teal, color: COLORS.white,
+                        fontWeight: 700, fontSize: "0.85rem", cursor: "pointer",
+                        fontFamily: "'Source Sans 3', sans-serif",
+                      }}
+                    >
+                      Répondre
+                    </button>
+                    <button
+                      onClick={() => setActiveReply(null)}
+                      style={{
+                        padding: "0.5rem 1.2rem", borderRadius: 10,
+                        border: "1px solid rgba(0,0,0,0.1)", background: "transparent",
+                        color: COLORS.gray, fontSize: "0.85rem", cursor: "pointer",
+                        fontFamily: "'Source Sans 3', sans-serif",
+                      }}
+                    >
+                      Annuler
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Pied de page communauté */}
+      <div style={{ textAlign: "center", marginTop: "3rem", padding: "2rem", color: COLORS.grayLight, fontSize: "0.85rem" }}>
+        <div className="arabic-text" style={{ fontSize: "1.1rem", marginBottom: "0.5rem" }}>وَتَعَاوَنُوا عَلَى الْبِرِّ وَالتَّقْوَىٰ</div>
+        <span style={{ fontStyle: "italic" }}>
+          « Entraidez-vous dans la piété et la crainte d'Allah. » — Al-Ma'ida 5:2
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ────── MAIN APP ──────
+function App() {
+  const [activeChapter, setActiveChapter] = useState(() =>
+    localStorage.getItem("lastChapter") || "home"
+  );
+  const [visited, setVisited] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem("visitedChapters") || "[]")); }
+    catch { return new Set(["home"]); }
+  });
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+  const [focusMode, setFocusMode] = useState(false);
+  const [onboardingDone, setOnboardingDone] = useState(() =>
+    !!localStorage.getItem("onboarding_done")
+  );
+  const contentRef = useRef(null);
+
+  useEffect(() => {
+    if (contentRef.current) contentRef.current.scrollTop = 0;
+    setVisited(prev => {
+      const next = new Set(prev).add(activeChapter);
+      localStorage.setItem("visitedChapters", JSON.stringify([...next]));
+      return next;
+    });
+  }, [activeChapter]);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const navigate = (id) => {
+    localStorage.setItem("lastChapter", id);
+    setActiveChapter(id);
+    setSidebarOpen(false);
+  };
+
+  const handleOnboardingComplete = (recommendedChapter) => {
+    localStorage.setItem("onboarding_done", "1");
+    setOnboardingDone(true);
+    navigate(recommendedChapter);
+  };
+
+  const renderContent = () => {
+    switch(activeChapter) {
+      case "home": return <HomeSection />;
+      case "intro": return <IntroSection />;
+      case "islam": return <IslamSection />;
+      case "environnement": return <EnvironnementSection />;
+      case "comportements": return <ComportementsSection />;
+      case "reparation": return <ReparationSection />;
+      case "neurosciences": return <NeurosciencesSection />;
+      case "monde": return <MondeSection />;
+      case "productivite": return <ProductiviteSection />;
+      case "rechute": return <RechuteSection />;
+      case "programme": return <ProgrammeSection />;
+      default: return <HomeSection />;
+    }
+  };
+
+  const currentIdx = CHAPTERS.findIndex(c => c.id === activeChapter);
+  const showNotes = !["home"].includes(activeChapter);
+  const showSidebar = !focusMode && !(isMobile && !sidebarOpen);
+
+  return (
+    <div style={{ display: "flex", height: "100vh", overflow: "hidden", background: COLORS.cream }}>
+      <style>{globalStyles}</style>
+
+      {/* Onboarding overlay */}
+      {!onboardingDone && (
+        <Onboarding onComplete={handleOnboardingComplete} />
+      )}
+
+      {/* Sidebar overlay on mobile */}
+      {sidebarOpen && !focusMode && (
+        <div onClick={() => setSidebarOpen(false)} style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 40
+        }} />
+      )}
+
+      {/* Sidebar */}
+      {showSidebar && (
+        <nav style={{
+          width: 280, minWidth: 280, height: "100vh", overflowY: "auto",
+          background: COLORS.white, borderRight: `1px solid rgba(27,107,95,0.08)`,
+          padding: "1.5rem 0",
+          position: sidebarOpen ? "fixed" : "relative",
+          zIndex: 50, left: 0, top: 0,
+        }}>
+          {/* Logo */}
+          <div style={{
+            padding: "0 1.5rem 1.2rem", textAlign: "center",
+            borderBottom: `1px solid rgba(0,0,0,0.05)`, marginBottom: "0.2rem"
+          }}>
+            <div style={{
+              width: 52, height: 52, margin: "0 auto 0.8rem", borderRadius: "50%",
+              background: `linear-gradient(135deg, ${COLORS.teal}, ${COLORS.tealLight})`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              border: `2px solid ${COLORS.gold}`
+            }}>
+              <span style={{ fontFamily: "'Amiri', serif", fontSize: "1.1rem", color: COLORS.gold }}>﷽</span>
+            </div>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: "0.95rem", color: COLORS.dark }}>
+              JADIS
+            </div>
+            <div style={{ fontSize: "0.72rem", color: COLORS.gold, fontWeight: 600, letterSpacing: "0.06em", marginTop: "0.15rem" }}>
+              Le Retour du Croyant
+            </div>
+          </div>
+
+          {/* Progress bar */}
+          <SidebarProgressBar />
+
+          {/* Nav items */}
+          {CHAPTERS.map((ch) => {
+            const isActive = activeChapter === ch.id;
+            const isDone = !isActive && visited.has(ch.id);
+            return (
+              <button key={ch.id} onClick={() => navigate(ch.id)} style={{
+                display: "flex", alignItems: "center", gap: "0.7rem",
+                width: "100%", padding: "0.65rem 1.5rem", border: "none",
+                background: isActive ? COLORS.tealPale : "transparent",
+                cursor: "pointer", textAlign: "left", fontFamily: "'Source Sans 3', sans-serif",
+                fontSize: "0.87rem", fontWeight: isActive ? 600 : 400,
+                color: isActive ? COLORS.teal : COLORS.gray,
+                borderLeft: isActive ? `3px solid ${COLORS.teal}` : "3px solid transparent",
+                transition: "all 0.2s"
+              }}>
+                <span style={{ flex: 1 }}>{ch.title}</span>
+                {isDone && (
+                  <svg width="12" height="10" viewBox="0 0 12 10" fill="none">
+                    <path d="M1 5L4.2 8.5L11 1.5" stroke={COLORS.tealLight} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+      )}
+
+      {/* Main */}
+      <main ref={contentRef} style={{ flex: 1, overflowY: "auto", padding: "0", scrollBehavior: "auto" }}>
+        {/* Top bar */}
+        <div style={{
+          position: "sticky", top: 0, zIndex: 30, background: "rgba(251,248,242,0.95)",
+          backdropFilter: "blur(8px)", borderBottom: "1px solid rgba(0,0,0,0.05)",
+          padding: "0.75rem 2rem", display: "flex", alignItems: "center", justifyContent: "space-between"
+        }}>
+          {/* Hamburger — masqué en focus */}
+          {!focusMode ? (
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} style={{
+              background: "none", border: "none", cursor: "pointer",
+              color: COLORS.teal, padding: "0.3rem", display: "flex", alignItems: "center"
+            }}>
+              <svg width="20" height="14" viewBox="0 0 20 14" fill="none">
+                <path d="M1 1h18M1 7h18M1 13h18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+              </svg>
+            </button>
+          ) : <div style={{ width: 28 }} />}
+
+          <span style={{ fontSize: "0.83rem", fontWeight: 600, color: COLORS.gray }}>
+            {CHAPTERS.find(c => c.id === activeChapter)?.title}
+          </span>
+
+          {/* Droite : compteur + bouton Focus */}
+          <div style={{ display: "flex", alignItems: "center", gap: "0.8rem" }}>
+            <span style={{ fontSize: "0.72rem", color: COLORS.grayLight, fontWeight: 600 }}>
+              {currentIdx + 1}/{CHAPTERS.length}
+            </span>
+            <button
+              onClick={() => setFocusMode(f => !f)}
+              style={{
+                background: focusMode ? COLORS.tealPale : "transparent",
+                border: `1px solid ${focusMode ? COLORS.teal : "rgba(27,107,95,0.2)"}`,
+                color: COLORS.teal, borderRadius: 8,
+                padding: "0.25rem 0.7rem", fontSize: "0.72rem",
+                fontWeight: 600, cursor: "pointer",
+                fontFamily: "'Source Sans 3', sans-serif",
+                letterSpacing: "0.02em", transition: "all 0.2s"
+              }}
+            >
+              {focusMode ? "Quitter Focus" : "Focus"}
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div
+          className={focusMode ? "focus-mode-content" : ""}
+          style={{ maxWidth: focusMode ? 860 : 780, margin: "0 auto", padding: "2rem 2rem 4rem" }}
+        >
+          {renderContent()}
+
+          {/* Notes personnelles */}
+          {showNotes && <ChapterNotes chapterId={activeChapter} />}
+
+          {/* Navigation buttons */}
+          <div style={{
+            display: "flex", justifyContent: "space-between", marginTop: "2.5rem",
+            paddingTop: "2rem", borderTop: `1px solid rgba(0,0,0,0.06)`
+          }}>
+            {currentIdx > 0 ? (
+              <button onClick={() => navigate(CHAPTERS[currentIdx - 1].id)} style={{
+                padding: "0.7rem 1.4rem", borderRadius: 10, border: `1px solid rgba(27,107,95,0.2)`,
+                background: "transparent", cursor: "pointer", color: COLORS.teal,
+                fontWeight: 600, fontSize: "0.88rem", fontFamily: "'Source Sans 3', sans-serif",
+                display: "flex", alignItems: "center", gap: "0.4rem"
+              }}>
+                <svg width="14" height="10" viewBox="0 0 14 10" fill="none">
+                  <path d="M13 5H1M1 5L5 1M1 5L5 9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                {CHAPTERS[currentIdx - 1].title}
+              </button>
+            ) : <div />}
+            {currentIdx < CHAPTERS.length - 1 && (
+              <button onClick={() => navigate(CHAPTERS[currentIdx + 1].id)} style={{
+                padding: "0.7rem 1.4rem", borderRadius: 10, border: "none",
+                background: COLORS.teal, cursor: "pointer", color: COLORS.white,
+                fontWeight: 600, fontSize: "0.88rem", fontFamily: "'Source Sans 3', sans-serif",
+                display: "flex", alignItems: "center", gap: "0.4rem"
+              }}>
+                {CHAPTERS[currentIdx + 1].title}
+                <svg width="14" height="10" viewBox="0 0 14 10" fill="none">
+                  <path d="M1 5H13M13 5L9 1M13 5L9 9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+      </main>
+
+      {/* Bouton sortie Focus flottant */}
+      {focusMode && (
+        <button className="focus-exit-btn" onClick={() => setFocusMode(false)}>
+          Quitter le mode Focus
+        </button>
+      )}
+    </div>
+  );
+}
+
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+
+// Mode embarqué : masque la nav du site quand chargé dans un iframe (dashboard)
+(function() {
+  var isEmbedded = window.self !== window.top || new URLSearchParams(window.location.search).get('embedded') === '1';
+  if (isEmbedded) {
+    var style = document.createElement('style');
+    style.textContent = '.site-topnav { display: none !important; } #root { padding-top: 0 !important; }';
+    document.head.appendChild(style);
+  }
+})();
+  </script>
+</body>
+</html>                                                                                                               

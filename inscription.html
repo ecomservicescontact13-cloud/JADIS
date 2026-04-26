@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rejoindre JADIS — Commencer ma transformation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500;600&family=Amiri:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --white: #FFFFFF;
+      --cream: #FAF8F3;
+      --cream-2: #F2EDE4;
+      --olive-light: #2A5C50;
+      --olive-mid: #1a3d34;
+      --olive-dark: #0C2620;
+      --gold: #C4A35A;
+      --gold-light: #E8C96A;
+      --gold-pale: #F5EDD6;
+      --text: #1A1A1A;
+      --text-muted: #6B6B6B;
+      --border: #E5E0D8;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'DM Sans', sans-serif; color: var(--text); background: var(--white); line-height: 1.65; overflow-x: hidden; }
+    a { text-decoration: none; color: inherit; }
+    h1, h2, h3 { font-family: 'Cormorant Garamond', serif; font-weight: 500; line-height: 1.2; }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: rgba(255,255,255,0.97); backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-inner {
+      max-width: 1080px; margin: 0 auto; padding: 0 24px;
+      height: 62px; display: flex; align-items: center; justify-content: space-between;
+    }
+    .nav-logo { display: flex; align-items: center; gap: 9px; }
+    .nav-logo-name { font-family: 'Cormorant Garamond', serif; font-size: 1.35rem; font-weight: 500; letter-spacing: 0.2em; color: var(--olive-dark); }
+    .nav-logo-sub { font-size: 0.6rem; color: var(--gold); letter-spacing: 0.1em; }
+    .nav-back { font-size: 0.82rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px; transition: color 0.2s; }
+    .nav-back:hover { color: var(--olive-dark); }
+
+    /* ── PAGE ── */
+    .page { max-width: 1080px; margin: 0 auto; padding: 0 24px; padding-top: 62px; }
+
+    /* ── HERO INSCRIPTION ── */
+    .ins-hero {
+      padding: 72px 0 56px;
+      display: grid;
+      grid-template-columns: 1fr 400px;
+      gap: 80px;
+      align-items: start;
+    }
+    .ins-eyebrow {
+      display: inline-flex; align-items: center; gap: 10px;
+      font-size: 0.75rem; font-weight: 500; letter-spacing: 0.14em;
+      text-transform: uppercase; color: var(--gold); margin-bottom: 18px;
+    }
+    .ins-eyebrow::before { content:''; width: 28px; height: 1px; background: var(--gold); }
+    .ins-arabic { font-family: 'Amiri', serif; font-size: 1.7rem; color: var(--olive-mid); direction: rtl; margin-bottom: 6px; }
+    .ins-ayah { font-size: 0.8rem; color: var(--text-muted); font-style: italic; margin-bottom: 28px; }
+    .ins-title { font-size: clamp(2rem, 4vw, 3.2rem); color: var(--olive-dark); margin-bottom: 18px; }
+    .ins-title em { font-style: italic; color: var(--olive-light); }
+    .ins-sub { font-size: 1rem; color: var(--text-muted); max-width: 500px; line-height: 1.8; margin-bottom: 32px; }
+
+    /* ── VALUE POINTS ── */
+    .value-list { display: flex; flex-direction: column; gap: 16px; margin-bottom: 36px; }
+    .value-item { display: flex; gap: 14px; align-items: flex-start; }
+    .value-check {
+      width: 22px; height: 22px; border-radius: 50%; background: var(--olive-dark);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; margin-top: 2px;
+    }
+    .value-check svg { width: 11px; height: 11px; stroke: white; stroke-width: 2.5; fill: none; }
+    .value-text h4 { font-size: 0.92rem; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+    .value-text p { font-size: 0.84rem; color: var(--text-muted); }
+
+    /* ── STICKY CARD ── */
+    .sticky-wrap { position: sticky; top: 80px; }
+    .price-card {
+      background: var(--white); border: 1px solid var(--border);
+      border-radius: 20px; padding: 36px 32px;
+      box-shadow: 0 8px 48px rgba(12,38,32,0.09);
+    }
+    .price-badge {
+      display: inline-block; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.1em;
+      text-transform: uppercase; background: var(--olive-dark); color: var(--white);
+      padding: 5px 14px; border-radius: 100px; margin-bottom: 20px;
+    }
+    .price-name { font-family: 'Cormorant Garamond', serif; font-size: 1.5rem; color: var(--olive-dark); margin-bottom: 4px; }
+    .price-desc { font-size: 0.83rem; color: var(--text-muted); margin-bottom: 20px; }
+    .price-row {
+      display: flex; align-items: baseline; gap: 4px; margin-bottom: 8px;
+    }
+    .price-currency { font-size: 1.6rem; color: var(--olive-mid); font-family: 'Cormorant Garamond', serif; }
+    .price-amount { font-family: 'Cormorant Garamond', serif; font-size: 4.5rem; font-weight: 600; color: var(--olive-dark); line-height: 1; }
+    .price-period { font-size: 0.82rem; color: var(--text-muted); }
+    .price-once { font-size: 0.78rem; color: var(--olive-light); font-weight: 500; margin-bottom: 24px; }
+    .price-features { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; }
+    .price-features li { display: flex; align-items: center; gap: 10px; font-size: 0.87rem; color: var(--text); }
+    .price-features li::before { content: '✓'; color: var(--olive-light); font-weight: 700; flex-shrink: 0; }
+    .btn-cta {
+      display: block; width: 100%; padding: 17px; text-align: center;
+      background: var(--olive-dark); color: var(--white);
+      font-family: 'DM Sans', sans-serif; font-size: 0.95rem; font-weight: 600;
+      letter-spacing: 0.04em; border-radius: 12px; transition: all 0.25s;
+      border: none; cursor: pointer;
+    }
+    .btn-cta:hover { background: var(--olive-mid); transform: translateY(-2px); box-shadow: 0 10px 28px rgba(12,38,32,0.18); }
+    .price-guarantee { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 0.78rem; color: var(--text-muted); }
+    .price-guarantee svg { width: 14px; height: 14px; stroke: var(--olive-light); flex-shrink: 0; fill: none; }
+    .price-divider { height: 1px; background: var(--border); margin: 20px 0; }
+    .price-free-label { font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 10px; }
+    .price-free-list { list-style: none; display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+    .price-free-list li { display: flex; align-items: center; gap: 8px; font-size: 0.83rem; color: var(--text-muted); }
+    .price-free-list li::before { content: '◇'; color: var(--gold); flex-shrink: 0; }
+    .btn-free {
+      display: block; width: 100%; padding: 13px; text-align: center;
+      background: transparent; color: var(--olive-dark);
+      border: 1.5px solid var(--border); border-radius: 10px;
+      font-size: 0.85rem; font-weight: 500; cursor: pointer; transition: all 0.2s;
+    }
+    .btn-free:hover { border-color: var(--olive-mid); background: var(--cream); }
+
+    /* ── MODULES ── */
+    .modules-section { padding: 72px 0 56px; }
+    .section-label { display: inline-block; font-size: 0.73rem; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); margin-bottom: 10px; }
+    .section-title { font-size: clamp(1.7rem, 3vw, 2.5rem); color: var(--olive-dark); margin-bottom: 12px; }
+    .section-sub { font-size: 0.93rem; color: var(--text-muted); max-width: 540px; line-height: 1.75; margin-bottom: 48px; }
+    .modules-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px; }
+    .module-item {
+      background: var(--cream); padding: 32px 28px;
+      transition: background 0.2s;
+    }
+    .module-item:hover { background: var(--cream-2); }
+    .module-num { font-family: 'Cormorant Garamond', serif; font-size: 3rem; font-weight: 300; color: var(--gold); opacity: 0.3; line-height: 1; margin-bottom: -4px; }
+    .module-title { font-family: 'Cormorant Garamond', serif; font-size: 1.25rem; color: var(--olive-dark); margin-bottom: 8px; }
+    .module-desc { font-size: 0.86rem; color: var(--text-muted); line-height: 1.7; margin-bottom: 14px; }
+    .module-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .module-tag { font-size: 0.72rem; padding: 3px 10px; background: var(--white); border: 1px solid var(--border); color: var(--text-muted); border-radius: 100px; }
+
+    /* ── DIFFÉRENCE ── */
+    .diff-section { background: var(--olive-dark); padding: 72px 0; }
+    .diff-inner { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+    .diff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; margin-top: 48px; }
+    .diff-col { padding: 0; }
+    .diff-header { font-size: 0.73rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; padding: 14px 24px; margin-bottom: 2px; }
+    .diff-header.bad { background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.35); }
+    .diff-header.good { background: rgba(196,163,90,0.12); color: var(--gold); }
+    .diff-item {
+      padding: 18px 24px; font-size: 0.88rem; line-height: 1.6;
+      display: flex; align-items: flex-start; gap: 10px;
+    }
+    .diff-item.bad { background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.45); border-bottom: 1px solid rgba(255,255,255,0.04); }
+    .diff-item.bad::before { content: '✗'; color: rgba(255,255,255,0.2); flex-shrink: 0; font-size: 0.9rem; }
+    .diff-item.good { background: rgba(196,163,90,0.07); color: rgba(255,255,255,0.8); border-bottom: 1px solid rgba(196,163,90,0.06); }
+    .diff-item.good::before { content: '✦'; color: var(--gold); flex-shrink: 0; font-size: 0.8rem; }
+
+    /* ── QUOTE BAND ── */
+    .quote-band { background: var(--cream); padding: 64px 0; text-align: center; }
+    .quote-arabic { font-family: 'Amiri', serif; font-size: 1.8rem; color: var(--olive-mid); direction: rtl; margin-bottom: 16px; }
+    blockquote { font-family: 'Cormorant Garamond', serif; font-size: clamp(1.2rem, 2.5vw, 1.9rem); font-style: italic; color: var(--olive-dark); max-width: 680px; margin: 0 auto 12px; line-height: 1.5; }
+    cite { font-size: 0.8rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gold); font-style: normal; }
+    .divider-gem { display: flex; align-items: center; gap: 14px; justify-content: center; margin: 28px 0; }
+    .divider-gem::before, .divider-gem::after { content:''; flex: 0 0 40px; height: 1px; background: var(--gold); opacity: 0.35; }
+    .diamond { width: 7px; height: 7px; background: var(--gold); transform: rotate(45deg); opacity: 0.7; }
+
+    /* ── CTA FINAL ── */
+    .cta-final { background: var(--olive-dark); padding: 96px 0; text-align: center; }
+    .cta-final-inner { max-width: 600px; margin: 0 auto; padding: 0 24px; }
+    .cta-final h2 { font-size: clamp(2rem, 4vw, 3rem); color: var(--white); margin-bottom: 16px; }
+    .cta-final p { color: rgba(255,255,255,0.55); font-size: 0.96rem; margin-bottom: 36px; }
+    .cta-final .btn-cta { max-width: 380px; margin: 0 auto; border-radius: 100px; padding: 18px 40px; font-size: 1rem; }
+    .cta-final .btn-cta:hover { background: var(--olive-mid); }
+    .cta-small { font-size: 0.78rem; color: rgba(255,255,255,0.3); margin-top: 14px; }
+
+    /* ── FAQ MINI ── */
+    .faq-section { padding: 72px 0; }
+    .faq-list { max-width: 680px; margin: 40px auto 0; display: flex; flex-direction: column; gap: 2px; }
+    .faq-item { background: var(--cream); border-radius: 4px; overflow: hidden; margin-bottom: 6px; }
+    .faq-question { width: 100%; text-align: left; background: none; border: none; padding: 20px 24px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 16px; font-family: 'Cormorant Garamond', serif; font-size: 1.05rem; color: var(--olive-dark); }
+    .faq-icon { width: 22px; height: 22px; border-radius: 50%; background: var(--white); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 0.9rem; color: var(--olive-mid); flex-shrink: 0; transition: transform 0.3s; }
+    .faq-answer { max-height: 0; overflow: hidden; transition: max-height 0.3s ease, padding 0.3s ease; padding: 0 24px; font-size: 0.88rem; color: var(--text-muted); line-height: 1.75; }
+    .faq-item.open .faq-answer { max-height: 200px; padding: 0 24px 20px; }
+    .faq-item.open .faq-icon { transform: rotate(45deg); }
+
+    /* ── FOOTER ── */
+    footer { background: #111; padding: 40px 0 24px; }
+    .footer-inner { max-width: 1080px; margin: 0 auto; padding: 0 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; }
+    .footer-logo-name { font-family: 'Cormorant Garamond', serif; font-size: 1.2rem; color: var(--white); letter-spacing: 0.2em; }
+    .footer-logo-sub { font-size: 0.6rem; color: var(--gold); letter-spacing: 0.1em; }
+    .footer-links { display: flex; gap: 20px; list-style: none; }
+    .footer-links a { font-size: 0.8rem; color: rgba(255,255,255,0.35); transition: color 0.2s; }
+    .footer-links a:hover { color: var(--gold); }
+    .footer-copy { max-width: 1080px; margin: 24px auto 0; padding: 16px 24px 0; border-top: 1px solid rgba(255,255,255,0.06); font-size: 0.75rem; color: rgba(255,255,255,0.18); }
+
+    /* ── MOBILE ── */
+    @media (max-width: 860px) {
+      .ins-hero { grid-template-columns: 1fr; gap: 48px; }
+      .sticky-wrap { position: static; }
+      .modules-grid { grid-template-columns: 1fr; }
+      .diff-grid { grid-template-columns: 1fr; }
+      .diff-col:first-child { display: none; }
+    }
+    @media (max-width: 600px) {
+      .ins-hero { padding: 48px 0 36px; }
+      .ins-title { font-size: 2rem; }
+      .modules-section, .faq-section { padding: 48px 0; }
+    }
+
+    /* ── ANIMATIONS ── */
+    .fade-in { opacity: 0; transform: translateY(18px); transition: opacity 0.6s ease, transform 0.6s ease; }
+    .fade-in.visible { opacity: 1; transform: translateY(0); }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-inner">
+    <a href="landing.html" class="nav-logo">
+      <div class="nav-logo-name">JADIS</div>
+    </a>
+    <a href="landing.html" class="nav-back">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+      Retour à l'accueil
+    </a>
+  </div>
+</nav>
+
+<div class="page">
+
+  <!-- HERO INSCRIPTION -->
+  <div class="ins-hero">
+
+    <!-- GAUCHE — Valeur -->
+    <div>
+      <div class="ins-eyebrow fade-in">Parcours islamique · 90 jours</div>
+      <div class="ins-arabic fade-in" dir="rtl">إِنَّ اللَّهَ يُحِبُّ الْمُحْسِنِينَ</div>
+      <div class="ins-ayah fade-in">— Coran 3:134 · Allah aime ceux qui font preuve d'excellence —</div>
+      <h1 class="ins-title fade-in">Ce programme va <em>changer ta vie.</em><br>Si tu passes à l'action.</h1>
+      <p class="ins-sub fade-in">JADIS n'est pas un énième programme de développement personnel. C'est un système complet fondé sur le Coran, la Sunnah et les neurosciences modernes — pour te transformer corps, âme et esprit en 90 jours.</p>
+
+      <div class="value-list fade-in">
+        <div class="value-item">
+          <div class="value-check"><svg viewBox="0 0 12 12"><polyline points="1,6 4.5,9.5 11,2.5"/></svg></div>
+          <div class="value-text">
+            <h4>Tu comprends enfin pourquoi tu n'arrives pas à changer</h4>
+            <p>Neurosciences, psychologie islamique, An-Nafs — les vrais mécanismes de l'âme humaine expliqués clairement.</p>
+          </div>
+        </div>
+        <div class="value-item">
+          <div class="value-check"><svg viewBox="0 0 12 12"><polyline points="1,6 4.5,9.5 11,2.5"/></svg></div>
+          <div class="value-text">
+            <h4>Tu reconstruis une identité islamique forte</h4>
+            <p>Pas de culpabilité, pas de pression. Une voie concrète pour renouer avec Allah et retrouver la paix intérieure.</p>
+          </div>
+        </div>
+        <div class="value-item">
+          <div class="value-check"><svg viewBox="0 0 12 12"><polyline points="1,6 4.5,9.5 11,2.5"/></svg></div>
+          <div class="value-text">
+            <h4>Tu as un programme quotidien actionnable — 15 min par jour</h4>
+            <p>Prières, dhikr, sport, nutrition, mental. Chaque pilier structuré en rituels intégrables dans ta vie réelle.</p>
+          </div>
+        </div>
+        <div class="value-item">
+          <div class="value-check"><svg viewBox="0 0 12 12"><polyline points="1,6 4.5,9.5 11,2.5"/></svg></div>
+          <div class="value-text">
+            <h4>Tu ne rechutes plus définitivement</h4>
+            <p>Le module Rechute & Retour te donne les outils pour te relever après une mauvaise journée — comme l'Islam te l'enseigne.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DROITE — Carte prix sticky -->
+    <div class="sticky-wrap fade-in">
+      <div class="price-card">
+        <div class="price-badge">✦ Accès Complet</div>
+        <div class="price-name">JADIS — Le Parcours</div>
+        <div class="price-desc">Parcours + Dashboard + Communauté</div>
+        <div class="price-row">
+          <span class="price-currency">€</span>
+          <span class="price-amount">47</span>
+        </div>
+        <div class="price-once">Paiement unique · Accès à vie</div>
+        <ul class="price-features">
+          <li>Parcours complet — 8 modules</li>
+          <li>JADIS Work — Workbook 90 Jours</li>
+          <li>Programme personnalisé 90 Jours</li>
+          <li>Dashboard de suivi personnel</li>
+          <li>Communauté privée JADIS</li>
+          <li>Mises à jour à vie</li>
+        </ul>
+        <a href="https://buy.stripe.com/aFa5kEc9V0jC5ahcdb4Ja00" class="btn-cta" id="main-cta">Démarrer mon Parcours ✦</a>
+        <div class="price-guarantee">
+          <svg viewBox="0 0 24 24" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Satisfait ou remboursé — 7 jours sans condition
+        </div>
+        <div class="price-divider"></div>
+        <div class="price-free-label">✦ Inclus gratuitement</div>
+        <ul class="price-free-list">
+          <li>Dashboard de suivi quotidien</li>
+          <li>Tracker des 3 piliers</li>
+          <li>Journal privé du soir</li>
+        </ul>
+      </div>
+    </div>
+
+  </div><!-- /ins-hero -->
+
+</div><!-- /page -->
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- MODULES — Ce que tu vas apprendre -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="modules-section">
+  <div style="max-width:1080px;margin:0 auto;padding:0 24px;">
+    <span class="section-label fade-in">Le contenu</span>
+    <h2 class="section-title fade-in">8 modules pour une transformation <em style="font-style:italic;color:var(--olive-light);">complète</em></h2>
+    <p class="section-sub fade-in">Chaque module est ancré dans le Coran et la Sunnah, et enrichi par les outils de la psychologie moderne. La théorie et la pratique, toujours ensemble.</p>
+    <div class="modules-grid">
+
+      <div class="module-item fade-in">
+        <div class="module-num">01</div>
+        <div class="module-title">Introduction — Pourquoi tu n'as pas encore changé</div>
+        <div class="module-desc">Les 3 raisons profondes pour lesquelles tous tes essais précédents ont échoué. La psychologie de la procrastination islamique.</div>
+        <div class="module-tags">
+          <span class="module-tag">Psychologie</span><span class="module-tag">Foundations</span>
+        </div>
+      </div>
+
+      <div class="module-item fade-in">
+        <div class="module-num">02</div>
+        <div class="module-title">L'Islam — Ta boussole, pas ta prison</div>
+        <div class="module-desc">Redécouvrir l'Islam comme un système de vie libérateur. Tawhid dans le réel. Comprendre ton "pourquoi" islamique profond.</div>
+        <div class="module-tags">
+          <span class="module-tag">Tawhid</span><span class="module-tag">Identité</span><span class="module-tag">Aqida</span>
+        </div>
+      </div>
+
+      <div class="module-item fade-in">
+        <div class="module-num">03</div>
+        <div class="module-title">L'Environnement — Ce que ton entourage te fait</div>
+        <div class="module-desc">Comment ton environnement physique et social programme tes comportements à ton insu. Les protocoles islamiques de purification de l'environnement.</div>
+        <div class="module-tags">
+          <span class="module-tag">Environnement</span><span class="module-tag">Neurosciences</span>
+        </div>
+      </div>
+
+      <div class="module-item fade-in">
+        <div class="module-num">04</div>
+        <div class="module-title">L'Origine des Comportements — Comprendre An-Nafs</div>
+        <div class="module-desc">Les 3 ennemis de l'âme : An-Nafs, Al-Hawa, Ash-Shaytan. Ce que la science du cerveau dit sur tes mauvaises habitudes et comment Islam et neurosciences se rejoignent.</div>
+        <div class="module-tags">
+          <span class="module-tag">An-Nafs</span><span class="module-tag">Habitudes</span>
+        </div>
+      </div>
+
+      <div class="module-item fade-in">
+        <div class="module-num">05</div>
+        <div class="module-title">Réparation Comportementale — Reconstruire</div>
+        <div class="module-desc">Le protocole de reconstruction comportementale islamique. Comment remplacer une mauvaise habitude par une bonne en 21 jours. La Tawba comme outil de reset.</div>
+        <div class="module-tags">
+          <span class="module-tag">Tawba</span><span class="module-tag">Protocole</span>
+        </div>
+      </div>
+
+      <div class="module-item fade-in">
+        <div class="module-num">06</div>
+        <div class="module-title">Neurosciences &amp; Identité — Reprogramme ton cerveau</div>
+        <div class="module-desc">La plasticité cérébrale au service de ta foi. Comment la répétition du Dhikr reconfigure littéralement ton système nerveux. Construire une identité islamique ancrée.</div>
+        <div class="module-tags">
+          <span class="module-tag">Identité</span><span class="module-tag">Dhikr</span><span class="module-tag">Cerveau</span>
+        </div>
+      </div>
+
+      <div class="module-item fade-in">
+        <div class="module-num">07</div>
+        <div class="module-title">Productivité &amp; Tawakkul — Agir sans s'épuiser</div>
+        <div class="module-desc">L'art islamique de la planification. Objectifs, Niyya, structure de journée prophétique. Tawakkul comme fondation de l'action, pas de la passivité.</div>
+        <div class="module-tags">
+          <span class="module-tag">Tawakkul</span><span class="module-tag">Productivité</span>
+        </div>
+      </div>
+
+      <div class="module-item fade-in">
+        <div class="module-num">08</div>
+        <div class="module-title">Rechute &amp; Retour — Se relever comme Ibrahim</div>
+        <div class="module-desc">Le module le plus important. Pourquoi les rechutes font partie du chemin. Le protocole de relèvement en 5 étapes. Comment ne plus jamais abandonner.</div>
+        <div class="module-tags">
+          <span class="module-tag">Rechute</span><span class="module-tag">Tawba</span><span class="module-tag">Résilience</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- DIFFÉRENCE — Pourquoi JADIS est différent -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="diff-section">
+  <div class="diff-inner">
+    <span class="section-label" style="color:var(--gold-light);" >Pourquoi c'est différent</span>
+    <h2 class="section-title fade-in" style="color:var(--white);margin-top:8px;">JADIS n'est pas un parcours comme les autres</h2>
+    <p class="section-sub fade-in" style="color:rgba(255,255,255,0.5);max-width:520px;">La majorité des programmes de développement personnel ignorent l'Islam. Et la majorité des contenus islamiques ignorent la psychologie. JADIS fait les deux.</p>
+    <div class="diff-grid fade-in">
+      <div class="diff-col">
+        <div class="diff-header bad">Les autres programmes</div>
+        <div class="diff-item bad">Conçues pour tout le monde — ne parlent pas à ton âme de Muslim</div>
+        <div class="diff-item bad">Ignorent la dimension spirituelle de tes comportements</div>
+        <div class="diff-item bad">Pas de système pour gérer la rechute — tu abandonnes après une mauvaise journée</div>
+        <div class="diff-item bad">Motivation superficielle qui disparaît en 3 semaines</div>
+        <div class="diff-item bad">Aucun ancrage islamique — inapplicable dans ta vraie vie</div>
+        <div class="diff-item bad">Théorie sans pratique quotidienne structurée</div>
+      </div>
+      <div class="diff-col">
+        <div class="diff-header good">JADIS</div>
+        <div class="diff-item good">Conçu exclusivement pour le Muslim moderne qui veut se transformer</div>
+        <div class="diff-item good">Chaque outil est ancré dans le Coran, la Sunnah et les neurosciences</div>
+        <div class="diff-item good">Module entier dédié à la rechute — se relever fait partie du programme</div>
+        <div class="diff-item good">Identité islamique comme fondation durable — pas une motivation éphémère</div>
+        <div class="diff-item good">Protocoles concrets adaptés à la vie du Muslim occidental</div>
+        <div class="diff-item good">Workbook de 90 jours + dashboard + communauté — la théorie mise en action</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- CITATION -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="quote-band">
+  <div style="max-width:1080px;margin:0 auto;padding:0 24px;">
+    <div class="divider-gem"><div class="diamond"></div></div>
+    <div class="quote-arabic" dir="rtl">وَالَّذِينَ جَاهَدُوا فِينَا لَنَهْدِيَنَّهُمْ سُبُلَنَا</div>
+    <blockquote>« Ceux qui font des efforts pour Nous, Nous les guiderons certes sur Nos sentiers. »</blockquote>
+    <cite>Sourate Al-Ankabut, 29:69</cite>
+    <div class="divider-gem"><div class="diamond"></div></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- FAQ -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="faq-section">
+  <div style="max-width:1080px;margin:0 auto;padding:0 24px;text-align:center;">
+    <span class="section-label">Questions</span>
+    <h2 class="section-title">Quelques réponses rapides</h2>
+    <div class="faq-list" style="text-align:left;">
+      <div class="faq-item">
+        <button class="faq-question" onclick="toggleFaq(this)">
+          Comment accède-t-on au parcours après le paiement ?
+          <div class="faq-icon">+</div>
+        </button>
+        <div class="faq-answer">Immédiatement. Tu crées ton compte sur le dashboard, tu te connectes, et l'onglet Parcours est débloqué en accès complet. Pas d'attente, pas d'email à attendre.</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-question" onclick="toggleFaq(this)">
+          Je suis débutant en Islam. Cette formation est-elle pour moi ?
+          <div class="faq-icon">+</div>
+        </button>
+        <div class="faq-answer">Absolument. JADIS est conçu pour le Muslim qui reprend son chemin, comme pour celui qui est pratiquant et veut aller plus loin. Pas de prérequis. Juste une intention sincère.</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-question" onclick="toggleFaq(this)">
+          Le paiement est-il sécurisé ?
+          <div class="faq-icon">+</div>
+        </button>
+        <div class="faq-answer">Oui, 100% sécurisé via Stripe — la référence mondiale du paiement en ligne. Tes données bancaires ne transitent jamais par nos serveurs. Et si dans les 7 jours tu n'es pas satisfait, tu es remboursé intégralement.</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-question" onclick="toggleFaq(this)">
+          Combien de temps dure le parcours ?
+          <div class="faq-icon">+</div>
+        </button>
+        <div class="faq-answer">Le parcours se suit à ton rythme. 90 jours est la durée recommandée. Chaque jour, 15-20 minutes suffisent. Ton accès est à vie — tu peux revenir à n'importe quel module quand tu veux.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- CTA FINAL -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="cta-final">
+  <div class="cta-final-inner">
+    <div class="ins-arabic fade-in" dir="rtl" style="font-size:1.6rem;color:rgba(196,163,90,0.7);margin-bottom:8px;">إِنَّمَا الْأَعْمَالُ بِالنِّيَّاتِ</div>
+    <div class="ins-ayah fade-in" style="color:rgba(255,255,255,0.3);margin-bottom:28px;">Les actes ne valent que par les intentions</div>
+    <h2 class="fade-in">Le meilleur moment pour commencer,<br>c'est <em style="color:var(--gold);font-style:italic;">maintenant.</em></h2>
+    <p class="fade-in">Dans 90 jours, tu regardes en arrière. Soit tu as agi — soit tu as encore attendu.</p>
+    <a href="https://buy.stripe.com/aFa5kEc9V0jC5ahcdb4Ja00" class="btn-cta fade-in">Démarrer mon Parcours — 47€ ✦</a>
+    <div class="cta-small fade-in">Paiement unique · Accès à vie · Remboursé si pas satisfait en 7 jours</div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-inner">
+    <div>
+      <div class="footer-logo-name">JADIS</div>
+    </div>
+    <ul class="footer-links">
+      <li><a href="landing.html">Accueil</a></li>
+      <li><a href="landing.html#pillars">Le Parcours</a></li>
+      <li><a href="landing.html#faq">FAQ</a></li>
+      <li><a href="dashboard.html">Dashboard</a></li>
+    </ul>
+  </div>
+  <div class="footer-copy">© 2026 JADIS · Formation islamique · Corps · Âme · Esprit</div>
+</footer>
+
+<script>
+  // Scroll animations
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); } });
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+
+  // FAQ
+  function toggleFaq(btn) {
+    const item = btn.closest('.faq-item');
+    const wasOpen = item.classList.contains('open');
+    document.querySelectorAll('.faq-item.open').forEach(i => i.classList.remove('open'));
+    if (!wasOpen) item.classList.add('open');
+  }
+
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "jadis",
+  "compatibility_date": "2026-04-24",
+  "pages_build_output_dir": ".",
+  "kv_namespaces": [
+    {
+      "binding": "JADIS_DATA",
+      "id": "c425348a94674d06bfd125c863bf0466"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+# Système
+.DS_Store
+Thumbs.db
+*.log
+
+# Node (si utilisé localement)
+node_modules/
+npm-debug.log
+
+# Firebase CLI
+.firebase/
+.firebaserc
+
+# Éditeur
+.vscode/
+.idea/
+
+# Docs internes (ne pas publier sur GitHub Pages)
+docs/

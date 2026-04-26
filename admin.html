@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JADIS — Administration</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <!-- API JADIS -->
+  <script src="api-config.js"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --white: #FFFFFF;
+      --cream: #FAF8F3;
+      --olive-light: #2A5C50;
+      --olive-mid: #1a3d34;
+      --olive-dark: #0C2620;
+      --gold: #C4A35A;
+      --gold-light: #E8D5A0;
+      --text: #1A1A1A;
+      --text-muted: #6B6B6B;
+      --border: #E8E4DC;
+      --sidebar-bg: #0C2620;
+      --danger: #c0392b;
+      --success: #2A5C50;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'DM Sans', sans-serif; color: var(--text); background: var(--cream); }
+
+    /* ── AUTH ── */
+    #auth-screen {
+      min-height: 100vh; display: flex; align-items: center;
+      justify-content: center; background: var(--olive-dark); padding: 24px;
+    }
+    .auth-box {
+      background: var(--white); border-radius: 4px; padding: 40px;
+      width: 100%; max-width: 400px; box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    }
+    .auth-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+    .auth-brand-name { font-family: 'Cormorant Garamond', serif; font-size: 1.6rem; letter-spacing: 0.18em; color: var(--olive-dark); }
+    .auth-brand-sub { font-size: 0.65rem; color: var(--gold); letter-spacing: 0.1em; }
+    .auth-admin-label {
+      font-size: 0.68rem; letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--text-muted); margin-bottom: 20px; padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .form-group { margin-bottom: 16px; }
+    .form-label { display: block; font-size: 0.8rem; font-weight: 500; margin-bottom: 6px; }
+    .form-input {
+      width: 100%; padding: 11px 14px; border: 1px solid var(--border);
+      font-family: 'DM Sans', sans-serif; font-size: 0.9rem; outline: none;
+      transition: border-color 0.2s; border-radius: 2px;
+    }
+    .form-input:focus { border-color: var(--olive-light); }
+    .btn-login {
+      width: 100%; padding: 13px; background: var(--olive-dark); color: var(--white);
+      border: none; font-family: 'DM Sans', sans-serif; font-size: 0.9rem; font-weight: 600;
+      cursor: pointer; border-radius: 2px; letter-spacing: 0.04em; transition: background 0.2s;
+    }
+    .btn-login:hover { background: var(--olive-mid); }
+    .auth-error { font-size: 0.8rem; color: var(--danger); margin-top: 10px; display: none; }
+
+    /* ── ADMIN PANEL ── */
+    #admin-panel { display: none; }
+    .admin-layout { display: flex; min-height: 100vh; }
+
+    /* Sidebar */
+    .admin-sidebar {
+      width: 240px; background: var(--sidebar-bg); flex-shrink: 0;
+      display: flex; flex-direction: column; position: fixed;
+      top: 0; left: 0; bottom: 0; z-index: 10;
+    }
+    .admin-logo { padding: 24px 20px 20px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+    .admin-logo-emblem { margin-bottom: 10px; }
+    .admin-logo-name { font-family: 'Cormorant Garamond', serif; font-size: 1.3rem; color: var(--white); letter-spacing: 0.22em; }
+    .admin-logo-sub { font-size: 0.65rem; color: var(--gold); margin-top: 2px; letter-spacing: 0.1em; }
+    .admin-badge {
+      display: inline-block; margin-top: 8px; padding: 3px 8px; background: rgba(196,163,90,0.15);
+      border: 1px solid rgba(196,163,90,0.3); font-size: 0.62rem; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--gold); border-radius: 2px;
+    }
+    .admin-nav { padding: 16px 12px; flex: 1; }
+    .admin-nav-label {
+      font-size: 0.63rem; letter-spacing: 0.12em; text-transform: uppercase;
+      color: rgba(255,255,255,0.25); padding: 0 8px; margin-bottom: 8px; margin-top: 16px;
+    }
+    .admin-nav-label:first-child { margin-top: 0; }
+    .admin-nav-item {
+      display: flex; align-items: center; gap: 10px; padding: 9px 8px;
+      border-radius: 4px; cursor: pointer; color: rgba(255,255,255,0.65);
+      font-size: 0.85rem; transition: all 0.2s; margin-bottom: 2px;
+    }
+    .admin-nav-item:hover { background: rgba(255,255,255,0.07); color: var(--white); }
+    .admin-nav-item.active { background: var(--gold); color: var(--white); }
+    .admin-nav-item svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+    .admin-sidebar-bottom {
+      padding: 16px; border-top: 1px solid rgba(255,255,255,0.08);
+    }
+    .btn-logout-side {
+      width: 100%; padding: 9px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.55); font-family: 'DM Sans', sans-serif; font-size: 0.8rem;
+      cursor: pointer; border-radius: 2px; transition: all 0.2s;
+    }
+    .btn-logout-side:hover { background: rgba(255,255,255,0.1); color: var(--white); }
+
+    /* Main */
+    .admin-main { margin-left: 240px; flex: 1; padding: 32px; min-width: 0; }
+    .admin-topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 28px; padding-bottom: 20px; border-bottom: 1px solid var(--border);
+    }
+    .admin-page-title { font-family: 'Cormorant Garamond', serif; font-size: 1.5rem; color: var(--olive-dark); }
+    .admin-page-sub { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
+
+    /* Sections */
+    .admin-section { display: none; }
+    .admin-section.active { display: block; }
+
+    /* Stats cards */
+    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 32px; }
+    .stat-card {
+      background: var(--white); border: 1px solid var(--border); border-radius: 4px;
+      padding: 20px 24px;
+    }
+    .stat-card-label { font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; }
+    .stat-card-value { font-family: 'Cormorant Garamond', serif; font-size: 2.2rem; color: var(--olive-dark); line-height: 1; }
+    .stat-card-value.gold { color: var(--gold); }
+    .stat-card-value.green { color: var(--olive-light); }
+
+    /* Table */
+    .table-card { background: var(--white); border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+    .table-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px; border-bottom: 1px solid var(--border);
+    }
+    .table-title { font-size: 0.85rem; font-weight: 600; color: var(--text); }
+    .table-search {
+      padding: 8px 12px; border: 1px solid var(--border); border-radius: 2px;
+      font-family: 'DM Sans', sans-serif; font-size: 0.82rem; outline: none; width: 220px;
+    }
+    .table-search:focus { border-color: var(--olive-light); }
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      text-align: left; padding: 10px 20px; font-size: 0.72rem; font-weight: 600;
+      letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted);
+      background: var(--cream); border-bottom: 1px solid var(--border);
+    }
+    td { padding: 12px 20px; font-size: 0.85rem; border-bottom: 1px solid var(--border); }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--cream); }
+    .badge-sub {
+      display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px;
+      border-radius: 20px; font-size: 0.75rem; font-weight: 600;
+    }
+    .badge-sub.active { background: rgba(42,92,80,0.1); color: var(--olive-light); }
+    .badge-sub.inactive { background: rgba(107,107,107,0.08); color: var(--text-muted); }
+    .toggle-btn {
+      padding: 5px 12px; border-radius: 2px; font-family: 'DM Sans', sans-serif;
+      font-size: 0.78rem; font-weight: 500; cursor: pointer; border: 1px solid; transition: all 0.2s;
+    }
+    .toggle-btn.activate { background: rgba(42,92,80,0.08); color: var(--olive-light); border-color: rgba(42,92,80,0.3); }
+    .toggle-btn.activate:hover { background: var(--olive-light); color: var(--white); }
+    .toggle-btn.revoke { background: rgba(192,57,43,0.06); color: var(--danger); border-color: rgba(192,57,43,0.2); }
+    .toggle-btn.revoke:hover { background: var(--danger); color: var(--white); }
+    .empty-state { padding: 40px; text-align: center; color: var(--text-muted); font-size: 0.85rem; }
+
+    /* Add subscriber form */
+    .add-form-card { background: var(--white); border: 1px solid var(--border); border-radius: 4px; padding: 24px; margin-top: 20px; }
+    .add-form-title { font-size: 0.85rem; font-weight: 600; margin-bottom: 16px; }
+    .add-form-row { display: flex; gap: 12px; }
+    .add-form-row .form-input { flex: 1; }
+    .btn-add {
+      padding: 11px 20px; background: var(--olive-dark); color: var(--white);
+      border: none; font-family: 'DM Sans', sans-serif; font-size: 0.85rem; font-weight: 600;
+      cursor: pointer; border-radius: 2px; white-space: nowrap; transition: background 0.2s;
+    }
+    .btn-add:hover { background: var(--olive-mid); }
+
+    /* Settings */
+    .settings-card { background: var(--white); border: 1px solid var(--border); border-radius: 4px; padding: 28px; max-width: 480px; }
+    .settings-title { font-size: 0.85rem; font-weight: 600; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+    .btn-save-pwd {
+      margin-top: 4px; padding: 11px 20px; background: var(--gold); color: var(--white);
+      border: none; font-family: 'DM Sans', sans-serif; font-size: 0.85rem; font-weight: 600;
+      cursor: pointer; border-radius: 2px; transition: background 0.2s;
+    }
+    .btn-save-pwd:hover { background: var(--olive-mid); }
+
+    /* Toast */
+    .admin-toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+      background: var(--olive-dark); color: var(--white); padding: 11px 22px;
+      border-radius: 4px; font-size: 0.85rem; transition: transform 0.3s ease;
+      pointer-events: none; z-index: 999; white-space: nowrap;
+    }
+    .admin-toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* Link to dashboard */
+    .back-link { font-size: 0.8rem; color: var(--text-muted); text-decoration: none; display: flex; align-items: center; gap: 6px; transition: color 0.2s; }
+    .back-link:hover { color: var(--olive-dark); }
+    .back-link svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; }
+
+    /* Analytics */
+    .analytics-stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+    .chart-card { background: var(--white); border: 1px solid var(--border); border-radius: 4px; padding: 20px 24px; margin-bottom: 24px; }
+    .chart-card-title { font-size: 0.82rem; font-weight: 600; color: var(--text); margin-bottom: 16px; }
+    .chart-wrap { height: 220px; position: relative; }
+
+    /* Events / table-wrap */
+    .table-wrap { overflow-x: auto; }
+    .admin-table { width: 100%; border-collapse: collapse; }
+    .admin-table th { text-align: left; padding: 10px 20px; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); background: var(--cream); border-bottom: 1px solid var(--border); }
+    .admin-table td { padding: 12px 20px; font-size: 0.85rem; border-bottom: 1px solid var(--border); }
+    .admin-table tr:last-child td { border-bottom: none; }
+    .admin-table tr:hover td { background: var(--cream); }
+    .btn-refresh { padding: 8px 16px; background: transparent; border: 1px solid var(--border); color: var(--text-muted); font-family: 'DM Sans', sans-serif; font-size: 0.82rem; cursor: pointer; border-radius: 2px; transition: all 0.2s; }
+    .btn-refresh:hover { border-color: var(--olive-light); color: var(--olive-light); }
+  </style>
+</head>
+<body>
+
+<!-- ══════════ AUTH ══════════ -->
+<div id="auth-screen">
+  <div class="auth-box">
+    <div class="auth-brand">
+      <svg width="40" height="40" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="47" fill="none" stroke="#C4A35A" stroke-width="2"/>
+        <circle cx="50" cy="50" r="43" fill="none" stroke="#C4A35A" stroke-width="0.9"/>
+        <path d="M40 17 A 33 33 0 1 0 40 83 A 24 24 0 1 1 40 17 Z" fill="#2A5C50"/>
+        <path d="M22 58 C 30 48 40 55 50 48 C 58 42 66 50 74 44" fill="none" stroke="#C4A35A" stroke-width="5" stroke-linecap="round"/>
+        <path d="M24 66 C 32 57 42 63 51 57 C 59 51 67 58 74 53" fill="none" stroke="#C4A35A" stroke-width="4" stroke-linecap="round"/>
+        <path d="M26 73 C 34 65 43 70 52 65 C 60 60 67 65 73 61" fill="none" stroke="#C4A35A" stroke-width="3.2" stroke-linecap="round"/>
+        <path d="M42 30 L42 46 Q 50 43 58 46 L58 30 Q 50 27 42 30 Z" fill="#C4A35A"/>
+        <line x1="50" y1="25" x2="50" y2="21" stroke="#C4A35A" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="55" y1="26" x2="58" y2="23" stroke="#C4A35A" stroke-width="1.8" stroke-linecap="round"/>
+        <line x1="45" y1="26" x2="42" y2="23" stroke="#C4A35A" stroke-width="1.8" stroke-linecap="round"/>
+        <polygon points="65,22 66,25 69,26 66,27 65,30 64,27 61,26 64,25" fill="#E8D5A0"/>
+      </svg>
+      <div>
+        <div class="auth-brand-name">JADIS</div>
+        <div class="auth-brand-sub">formation islamique</div>
+      </div>
+    </div>
+    <div class="auth-admin-label">Panneau d'administration</div>
+    <div class="form-group">
+      <label class="form-label">Email administrateur</label>
+      <input type="email" class="form-input" id="admin-email-input" placeholder="admin@exemple.com" onkeydown="if(event.key==='Enter') adminLogin()" />
+    </div>
+
+    <button class="btn-login" onclick="adminLogin()">Accéder au panneau ✦</button>
+    <div class="auth-error" id="auth-error">Mot de passe incorrect.</div>
+  </div>
+</div>
+
+<!-- ══════════ ADMIN PANEL ══════════ -->
+<div id="admin-panel">
+  <div class="admin-layout">
+
+    <!-- Sidebar -->
+    <aside class="admin-sidebar">
+      <div class="admin-logo">
+        <div class="admin-logo-emblem">
+          <svg width="38" height="38" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="50" cy="50" r="47" fill="none" stroke="#C4A35A" stroke-width="2"/>
+            <circle cx="50" cy="50" r="43" fill="none" stroke="#C4A35A" stroke-width="0.9"/>
+            <path d="M40 17 A 33 33 0 1 0 40 83 A 24 24 0 1 1 40 17 Z" fill="#2A5C50"/>
+            <path d="M22 58 C 30 48 40 55 50 48 C 58 42 66 50 74 44" fill="none" stroke="#C4A35A" stroke-width="5" stroke-linecap="round"/>
+            <path d="M24 66 C 32 57 42 63 51 57 C 59 51 67 58 74 53" fill="none" stroke="#C4A35A" stroke-width="4" stroke-linecap="round"/>
+            <path d="M42 30 L42 46 Q 50 43 58 46 L58 30 Q 50 27 42 30 Z" fill="#C4A35A"/>
+            <line x1="50" y1="25" x2="50" y2="21" stroke="#C4A35A" stroke-width="1.8" stroke-linecap="round"/>
+            <polygon points="65,22 66,25 69,26 66,27 65,30 64,27 61,26 64,25" fill="#E8D5A0"/>
+          </svg>
+        </div>
+        <div class="admin-logo-name">JADIS</div>
+        <div class="admin-logo-sub">formation islamique</div>
+        <div class="admin-badge">Administration</div>
+      </div>
+
+      <nav class="admin-nav">
+        <div class="admin-nav-label">Tableau de bord</div>
+        <div class="admin-nav-item active" onclick="showSection('overview')">
+          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+          Vue d'ensemble
+        </div>
+        <div class="admin-nav-item" onclick="showSection('analytics')">
+          <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Analytiques
+        </div>
+        <div class="admin-nav-label">Abonnés</div>
+        <div class="admin-nav-item" onclick="showSection('users')">
+          <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Utilisateurs inscrits
+        </div>
+        <div class="admin-nav-item" onclick="showSection('events')">
+          <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Connexions récentes
+        </div>
+        <div class="admin-nav-item" onclick="showSection('add')">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+          Ajouter un abonné
+        </div>
+        <div class="admin-nav-label">Paramètres</div>
+        <div class="admin-nav-item" onclick="showSection('settings')">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Paramètres
+        </div>
+      </nav>
+
+      <div class="admin-sidebar-bottom">
+        <a href="dashboard.html" class="back-link" style="display:flex;align-items:center;gap:6px;color:rgba(255,255,255,0.4);text-decoration:none;font-size:0.78rem;margin-bottom:10px;transition:color 0.2s;" onmouseover="this.style.color='rgba(255,255,255,0.8)'" onmouseout="this.style.color='rgba(255,255,255,0.4)'">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+          Retour au dashboard
+        </a>
+        <button class="btn-logout-side" onclick="adminLogout()">Déconnexion</button>
+      </div>
+    </aside>
+
+    <!-- Main content -->
+    <main class="admin-main">
+
+      <!-- ─── OVERVIEW ─── -->
+      <div class="admin-section active" id="section-overview">
+        <div class="admin-topbar">
+          <div>
+            <div class="admin-page-title">Vue d'ensemble</div>
+            <div class="admin-page-sub">Statistiques générales de la plateforme JADIS</div>
+          </div>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-card-label">Utilisateurs inscrits</div>
+            <div class="stat-card-value" id="stat-total">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-label">Abonnés actifs</div>
+            <div class="stat-card-value green" id="stat-subscribers">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-label">Sans abonnement</div>
+            <div class="stat-card-value gold" id="stat-free">0</div>
+          </div>
+        </div>
+        <div class="table-card">
+          <div class="table-header">
+            <span class="table-title">Derniers inscrits</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Prénom</th>
+                <th>Email</th>
+                <th>Inscription</th>
+                <th>Dernière connexion</th>
+                <th>Statut</th>
+              </tr>
+            </thead>
+            <tbody id="overview-table-body">
+              <tr><td colspan="5" class="empty-state">Aucun utilisateur inscrit pour l'instant.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ─── ANALYTICS ─── -->
+      <div class="admin-section" id="section-analytics">
+        <div class="admin-topbar">
+          <div>
+            <div class="admin-page-title">Analytiques</div>
+            <div class="admin-page-sub">Statistiques de visite et taux de conversion</div>
+          </div>
+        </div>
+        <div class="analytics-stats-grid">
+          <div class="stat-card">
+            <div class="stat-card-label">Visites totales</div>
+            <div class="stat-card-value" id="stat-visits-total">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-label">Visites aujourd'hui</div>
+            <div class="stat-card-value green" id="stat-visits-today">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-label">Sessions uniques</div>
+            <div class="stat-card-value gold" id="stat-visits-sessions">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-label">Taux de conversion</div>
+            <div class="stat-card-value" id="stat-conversion">—</div>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-title">Visites — 7 derniers jours</div>
+          <div class="chart-wrap">
+            <canvas id="visits-chart"></canvas>
+          </div>
+        </div>
+        <div class="table-card">
+          <div class="table-header">
+            <span class="table-title">Visites par page</span>
+          </div>
+          <table>
+            <thead>
+              <tr><th>Page</th><th>Visites</th></tr>
+            </thead>
+            <tbody id="pages-table-body">
+              <tr><td colspan="2" class="empty-state">Chargement…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ─── USERS ─── -->
+      <div class="admin-section" id="section-users">
+        <div class="admin-topbar">
+          <div>
+            <div class="admin-page-title">Gestion des abonnés</div>
+            <div class="admin-page-sub">Activer ou révoquer l'accès premium d'un utilisateur</div>
+          </div>
+          <input type="text" class="table-search" id="user-search" placeholder="Rechercher par email…" oninput="renderUsersTable()" />
+        </div>
+        <div class="table-card">
+          <table>
+            <thead>
+              <tr>
+                <th>Prénom</th>
+                <th>Email</th>
+                <th>Inscription</th>
+                <th>Dernière connexion</th>
+                <th>Statut</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="users-table-body">
+              <tr><td colspan="6" class="empty-state">Aucun utilisateur inscrit pour l'instant.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ─── EVENTS (connexions / inscriptions) ─── -->
+      <div class="admin-section" id="section-events">
+        <div class="admin-topbar">
+          <div>
+            <div class="admin-page-title">Connexions récentes</div>
+            <div class="admin-page-sub">50 derniers événements (inscriptions + connexions)</div>
+          </div>
+          <button class="btn-refresh" onclick="renderLoginEvents()">Actualiser</button>
+        </div>
+        <div class="table-wrap">
+          <table class="admin-table">
+            <thead><tr>
+              <th>Prénom</th><th>Email</th><th>Type</th><th>Date</th>
+            </tr></thead>
+            <tbody id="login-events-body">
+              <tr><td colspan="4" class="empty-state">Chargement…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ─── ADD ─── -->
+      <div class="admin-section" id="section-add">
+        <div class="admin-topbar">
+          <div>
+            <div class="admin-page-title">Ajouter un abonné</div>
+            <div class="admin-page-sub">Ajouter un email manuellement à la liste des abonnés premium</div>
+          </div>
+        </div>
+        <div class="add-form-card">
+          <div class="add-form-title">Activation manuelle par email</div>
+          <div class="add-form-row">
+            <input type="text" class="form-input" id="add-name" placeholder="Prénom (optionnel)" style="max-width:180px;" />
+            <input type="email" class="form-input" id="add-email" placeholder="email@exemple.com" onkeydown="if(event.key==='Enter') addSubscriberManual()" />
+            <button class="btn-add" onclick="addSubscriberManual()">Activer l'accès ✦</button>
+          </div>
+          <div style="margin-top:12px;font-size:0.78rem;color:var(--text-muted);">
+            L'utilisateur devra se connecter avec cet email exact sur le dashboard pour accéder au contenu premium.
+          </div>
+        </div>
+
+        <div class="table-card" style="margin-top:24px;">
+          <div class="table-header">
+            <span class="table-title">Abonnés actifs</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Email</th>
+                <th>Ajouté le</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="subs-only-table-body">
+              <tr><td colspan="3" class="empty-state">Aucun abonné actif.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ─── SETTINGS ─── -->
+      <div class="admin-section" id="section-settings">
+        <div class="admin-topbar">
+          <div>
+            <div class="admin-page-title">Paramètres</div>
+            <div class="admin-page-sub">Configuration du panneau d'administration</div>
+          </div>
+        </div>
+        <div class="settings-card">
+          <div class="settings-title">Accès administrateur</div>
+          <p style="font-size:0.83rem;color:var(--text-muted);margin-bottom:16px;">Accès par email uniquement — aucun mot de passe requis pour les admins. Les membres ordinaires utilisent email + mot de passe via l'API JADIS.</p>
+        </div>
+
+        <div class="settings-card" style="margin-top:20px;">
+          <div class="settings-title">Réinitialisation</div>
+          <p style="font-size:0.83rem;color:var(--text-muted);margin-bottom:16px;">Exporter la liste des abonnés ou réinitialiser les données de la plateforme.</p>
+          <div style="display:flex;gap:12px;">
+            <button class="btn-add" style="background:var(--olive-light);" onclick="exportSubscribers()">Exporter abonnés</button>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="admin-toast" id="admin-toast"></div>
+
+<script>
+// ── API JADIS INIT ──
+async function apiCall(endpoint, method = 'GET', body = null) {
+  const token = localStorage.getItem('jadis_token');
+  const res = await fetch(JADIS_API_URL + '/' + endpoint, {
+    method,
+    headers: Object.assign(
+      { 'Content-Type': 'application/json' },
+      token ? { 'Authorization': 'Bearer ' + token } : {}
+    ),
+    body: body ? JSON.stringify(body) : null
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(data.error || 'Erreur API'), { status: res.status });
+  return data;
+}
+
+// ── Vérification session existante au chargement ──
+(async () => {
+  const token = localStorage.getItem('jadis_token');
+  if (!token) return;
+  try {
+    const res = await apiCall('auth/verify', 'POST');
+    if (res.isAdmin) {
+      document.getElementById('auth-screen').style.display = 'none';
+      document.getElementById('admin-panel').style.display = 'block';
+      loadAllData();
+    }
+  } catch (_) { localStorage.removeItem('jadis_token'); }
+})();
+
+// ── AUTH ──
+async function adminLogin() {
+  const emailInput = document.getElementById('admin-email-input').value.trim();
+  const errEl      = document.getElementById('auth-error');
+  if (!emailInput) { errEl.textContent = 'Entre ton email.'; errEl.style.display = 'block'; return; }
+  errEl.style.display = 'none';
+
+  if (!isAdminEmail(emailInput)) {
+    errEl.textContent = 'Accès non autorisé pour cet email.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  try {
+    const res = await apiCall('auth/login', 'POST', { email: emailInput });
+    if (!res.isAdmin) throw new Error('Accès non autorisé');
+    localStorage.setItem('jadis_token', res.token);
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('admin-panel').style.display = 'block';
+    loadAllData();
+  } catch(e) {
+    errEl.textContent = e.message || 'Erreur de connexion.';
+    errEl.style.display = 'block';
+  }
+}
+
+async function adminLogout() {
+  localStorage.removeItem('jadis_token');
+  document.getElementById('admin-panel').style.display = 'none';
+  document.getElementById('auth-screen').style.display = 'flex';
+  document.getElementById('auth-error').style.display = 'none';
+}
+
+// ── HELPERS ──
+function fmtDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+// ── LOAD ALL DATA ──
+async function loadAllData() {
+  await Promise.all([
+    renderStats(),
+    renderOverviewTable(),
+    renderUsersTable(),
+    renderSubsOnlyTable(),
+    renderLoginEvents()
+  ]);
+}
+
+// ── STATS ──
+async function renderStats() {
+  const data = await apiCall('admin/stats');
+  document.getElementById('stat-total').textContent       = data.totalUsers;
+  document.getElementById('stat-subscribers').textContent = data.totalSubscribers;
+  document.getElementById('stat-free').textContent        = data.totalFree;
+}
+
+// ── OVERVIEW TABLE ──
+async function renderOverviewTable() {
+  const tbody = document.getElementById('overview-table-body');
+  try {
+    const data = await apiCall('admin/users');
+    const users = (data.users || []).slice(0, 10);
+    if (!users.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Aucun utilisateur inscrit pour l\'instant.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = users.map(u => `<tr>
+      <td>${u.name || '—'}</td>
+      <td>${u.email}</td>
+      <td>${fmtDate(u.createdAt)}</td>
+      <td>${fmtDate(u.lastLogin)}</td>
+      <td><span class="badge-sub ${u.isSubscriber ? 'active' : 'inactive'}">${u.isSubscriber ? '✦ Abonné' : 'Gratuit'}</span></td>
+    </tr>`).join('');
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Erreur de chargement.</td></tr>';
+  }
+}
+
+// ── USERS TABLE ──
+async function renderUsersTable() {
+  const search = (document.getElementById('user-search')?.value || '').toLowerCase();
+  const tbody  = document.getElementById('users-table-body');
+  try {
+    const data = await apiCall('admin/users');
+    let users = data.users || [];
+    if (search) users = users.filter(u =>
+      (u.email || '').includes(search) || (u.name || '').toLowerCase().includes(search)
+    );
+    if (!users.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Aucun utilisateur trouvé.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = users.map(u => {
+      const safeName = (u.name || '').replace(/'/g, '\\u0027');
+      return `<tr>
+        <td>${u.name || '—'}</td>
+        <td>${u.email}</td>
+        <td>${fmtDate(u.createdAt)}</td>
+        <td>${fmtDate(u.lastLogin)}</td>
+        <td><span class="badge-sub ${u.isSubscriber ? 'active' : 'inactive'}">${u.isSubscriber ? '✦ Abonné' : 'Gratuit'}</span></td>
+        <td>${u.isSubscriber
+          ? `<button class="toggle-btn revoke" onclick="revokeAccess('${u.email}')">Révoquer</button>`
+          : `<button class="toggle-btn activate" onclick="grantAccess('${u.email}','${safeName}')">Activer ✦</button>`
+        }</td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Erreur de chargement.</td></tr>';
+  }
+}
+
+// ── LOGIN EVENTS TABLE ──
+async function renderLoginEvents() {
+  const tbody = document.getElementById('login-events-body');
+  if (!tbody) return;
+  try {
+    const data = await apiCall('admin/events');
+    if (!data.events?.length) {
+      tbody.innerHTML = '<tr><td colspan="4" class="empty-state">Aucun événement enregistré.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.events.map(e => {
+      const badge = e.type === 'register'
+        ? '<span class="badge-sub active" style="font-size:0.7rem;">Inscription</span>'
+        : '<span class="badge-sub inactive" style="font-size:0.7rem;">Connexion</span>';
+      return `<tr>
+        <td>${e.name || '—'}</td>
+        <td>${e.email || '—'}</td>
+        <td>${badge}</td>
+        <td>${fmtDate(e.timestamp)}</td>
+      </tr>`;
+    }).join('');
+  } catch (err) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty-state">Erreur de chargement.</td></tr>';
+  }
+}
+
+// ── SUBS-ONLY TABLE ──
+async function renderSubsOnlyTable() {
+  const data  = await apiCall('admin/users');
+  const subs  = (data.users || []).filter(u => u.isSubscriber);
+  const tbody = document.getElementById('subs-only-table-body');
+  if (!subs.length) {
+    tbody.innerHTML = '<tr><td colspan="3" class="empty-state">Aucun abonné actif.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = subs.map(u => `<tr>
+    <td>${u.email}</td>
+    <td>${fmtDate(u.lastLogin)}</td>
+    <td><button class="toggle-btn revoke" onclick="revokeAccess('${u.email}')">Révoquer</button></td>
+  </tr>`).join('');
+}
+
+// ── GRANT / REVOKE ──
+async function grantAccess(email, name) {
+  await apiCall('admin/grant', 'POST', { email, name });
+  await loadAllData();
+  toast('Accès activé pour ' + email + ' ✦');
+}
+
+async function revokeAccess(email) {
+  await apiCall('admin/revoke', 'POST', { email });
+  await loadAllData();
+  toast('Accès révoqué pour ' + email);
+}
+
+async function addSubscriberManual() {
+  const email = document.getElementById('add-email').value.trim();
+  const name  = document.getElementById('add-name').value.trim() || email.split('@')[0];
+  if (!email || !email.includes('@')) { toast('Saisis un email valide'); return; }
+  await grantAccess(email, name);
+  document.getElementById('add-email').value = '';
+  document.getElementById('add-name').value  = '';
+}
+
+// ── ANALYTICS ──
+let analyticsChart = null;
+
+async function renderAnalytics() {
+  const data  = await apiCall('admin/stats');
+  const views = data.recentEvents || [];
+
+  document.getElementById('stat-visits-total').textContent    = data.totalPageviews || 0;
+  document.getElementById('stat-visits-today').textContent    = data.todayPageviews || 0;
+  document.getElementById('stat-visits-sessions').textContent = '—';
+  const rate = data.totalUsers > 0 ? Math.round((data.totalSubscribers / data.totalUsers) * 100) : 0;
+  document.getElementById('stat-conversion').textContent = rate + '%';
+
+  // 7-day chart (événements login/register)
+  const labels = [], counts = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const key = d.toISOString().split('T')[0];
+    labels.push(d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' }));
+    counts.push(views.filter(v => (v.timestamp || '').startsWith(key)).length);
+  }
+  const ctx = document.getElementById('visits-chart').getContext('2d');
+  if (analyticsChart) analyticsChart.destroy();
+  analyticsChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Visites',
+        data: counts,
+        borderColor: '#2A5C50',
+        backgroundColor: 'rgba(42,92,80,0.08)',
+        borderWidth: 2,
+        pointBackgroundColor: '#2A5C50',
+        pointRadius: 4,
+        fill: true,
+        tension: 0.3
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: 'rgba(0,0,0,0.05)' } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+
+  // Page breakdown
+  const pageCounts = {};
+  views.forEach(v => { if (v.page) pageCounts[v.page] = (pageCounts[v.page] || 0) + 1; });
+  const tbody  = document.getElementById('pages-table-body');
+  const sorted = Object.entries(pageCounts).sort((a, b) => b[1] - a[1]);
+  tbody.innerHTML = sorted.length
+    ? sorted.map(([page, n]) => `<tr><td>${page}</td><td>${n}</td></tr>`).join('')
+    : '<tr><td colspan="2" class="empty-state">Aucune donnée de visite.</td></tr>';
+}
+
+// ── EXPORT ──
+async function exportSubscribers() {
+  const data = await apiCall('admin/users');
+  const text = (data.users || []).filter(u => u.isSubscriber).map(u => u.email).join('\n');
+  navigator.clipboard.writeText(text)
+    .then(() => toast('Liste copiée dans le presse-papiers ✦'))
+    .catch(() => { prompt('Copie la liste :', text); });
+}
+
+// ── NAVIGATION ──
+function showSection(name) {
+  document.querySelectorAll('.admin-section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.admin-nav-item').forEach(n => n.classList.remove('active'));
+  const section = document.getElementById('section-' + name);
+  if (section) section.classList.add('active');
+  const navMap = { overview: 0, analytics: 1, users: 2, events: 3, add: 4, settings: 5 };
+  const items  = document.querySelectorAll('.admin-nav-item');
+  if (navMap[name] !== undefined) items[navMap[name]].classList.add('active');
+  if (name === 'analytics') renderAnalytics();
+}
+
+// ── TOAST ──
+function toast(msg) {
+  const el = document.getElementById('admin-toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>
